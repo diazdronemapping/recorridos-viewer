@@ -1,0 +1,279 @@
+{
+  "manifestVersion": 1,
+  "id": "santa-maria",
+  "meta": {
+    "title": "Recorrido Santa María",
+    "client": "Francisco Islas",
+    "description": "Recorrido virtual de demostración — bodega Santa María y levantamiento topográfico Agua Blanca.",
+    "locale": "es-MX",
+    "created": "2026-07-04",
+    "updated": "2026-07-04"
+  },
+  "branding": {
+    "logo": "assets/brand/logo.png",
+    "nadirLogo": "assets/brand/nadir.svg",
+    "theme": { "accent": "#7BC142", "bg": "#1A1A1A" }
+  },
+  "access": { "visibility": "public" },
+  "start": { "sceneId": "pano-01" },
+  "idle": { "autorotateAfter": 12, "rpm": 0.4 },
+  "autopilot": {
+    "enabled": true,
+    "steps": [
+      { "sceneId": "pano-01", "lookAt": { "yaw": 0, "pitch": -10 }, "dwell": 5 },
+      { "sceneId": "pano-02", "lookAt": { "yaw": -15, "pitch": -20 }, "dwell": 5 },
+      { "sceneId": "pano-05", "lookAt": { "yaw": 0, "pitch": -5 }, "dwell": 5 },
+      { "sceneId": "pano-08", "lookAt": { "yaw": 60, "pitch": -8 }, "dwell": 5 },
+      { "sceneId": "ortho-agua-blanca", "dwell": 9 },
+      { "sceneId": "nube-agua-blanca", "dwell": 10 }
+    ],
+    "narration": null
+  },
+  "plan": {
+    "type": "image",
+    "src": "assets/plan/planta.jpg",
+    "size": [1400, 1048],
+    "bearing": 0,
+    "radar": true,
+    "pins": [
+      { "sceneId": "pano-01", "position": [753, 289] },
+      { "sceneId": "pano-02", "position": [613, 543] },
+      { "sceneId": "pano-03", "position": [875, 201] },
+      { "sceneId": "pano-04", "position": [368, 411] },
+      { "sceneId": "pano-05", "position": [573, 613] },
+      { "sceneId": "pano-06", "position": [567, 595] },
+      { "sceneId": "pano-07", "position": [560, 573] },
+      { "sceneId": "pano-08", "position": [553, 551] },
+      { "sceneId": "pano-09", "position": [546, 529] },
+      { "sceneId": "pano-10", "position": [539, 508] }
+    ]
+  },
+  "scenes": [
+    {
+      "type": "pano360",
+      "id": "pano-01",
+      "title": "Vista aérea · Cruce principal",
+      "thumbnail": "assets/thumbs/pano-01.jpg",
+      "src": "assets/360/pano-01.jpg",
+      "initialView": { "yaw": 0, "pitch": -8, "fov": 70 },
+      "northOffset": 220,
+      "intro": "littlePlanet",
+      "hotspots": [
+        { "id": "p01-nav-02", "type": "nav", "position": { "yaw": -35, "pitch": -22 }, "target": "pano-02", "label": "Hacia la bodega", "icon": "casa" },
+        { "id": "p01-nav-03", "type": "nav", "position": { "yaw": 145, "pitch": -18 }, "target": "pano-03", "label": "Vista del entorno" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-02",
+      "title": "Vista aérea · La bodega",
+      "thumbnail": "assets/thumbs/pano-02.jpg",
+      "src": "assets/360/pano-02.jpg",
+      "initialView": { "yaw": -15, "pitch": -15, "fov": 70 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p02-info-bodega", "type": "info", "position": { "yaw": -15, "pitch": -16 }, "icon": "pulse",
+          "content": {
+            "title": "Bodega Santa María",
+            "html": "<p>Nave industrial techada de arco, con amplio interior, andén de carga y acceso directo desde la avenida.</p><p>Entra al recorrido interior para conocerla por dentro.</p>",
+            "media": { "kind": "image", "src": "assets/thumbs/pano-05.jpg" },
+            "gallery": ["assets/thumbs/pano-06.jpg", "assets/thumbs/pano-07.jpg"]
+          } },
+        { "id": "p02-poly-bodega", "type": "polygon",
+          "positions": [
+            { "yaw": -32, "pitch": -30 },
+            { "yaw": -6, "pitch": -34 },
+            { "yaw": 4, "pitch": -16 },
+            { "yaw": -14, "pitch": -11 },
+            { "yaw": -30, "pitch": -14 }
+          ],
+          "style": { "stroke": "#7BC142", "fill": "rgba(123,193,66,0.16)" },
+          "content": {
+            "title": "Predio de la bodega",
+            "html": "<p>Terreno de ≈1,600 m² delimitado sobre la vista aérea: 84 m y 67 m de fondo, frente de 30 m sobre la avenida y acceso posterior de 22 m.</p>"
+          } },
+        { "id": "p02-dl-planta", "type": "download", "position": { "yaw": 28, "pitch": -26 },
+          "src": "assets/plan/planta.jpg", "label": "Descargar planta del sitio",
+          "filename": "planta-santa-maria.jpg", "icon": "documento" },
+        { "id": "p02-nav-05", "type": "nav", "position": { "yaw": -18, "pitch": -32 }, "target": "pano-05", "label": "Entrar a la bodega" },
+        { "id": "p02-nav-01", "type": "nav", "position": { "yaw": 168, "pitch": -14 }, "target": "pano-01", "label": "Cruce principal" },
+        { "id": "p02-nav-04", "type": "nav", "position": { "yaw": 75, "pitch": -14 }, "target": "pano-04", "label": "Zona comercial" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-03",
+      "title": "Vista aérea · Entorno urbano",
+      "thumbnail": "assets/thumbs/pano-03.jpg",
+      "src": "assets/360/pano-03.jpg",
+      "initialView": { "yaw": 20, "pitch": -10, "fov": 70 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p03-nav-01", "type": "nav", "position": { "yaw": -40, "pitch": -20 }, "target": "pano-01", "label": "Cruce principal" },
+        { "id": "p03-nav-04", "type": "nav", "position": { "yaw": 95, "pitch": -16 }, "target": "pano-04", "label": "Zona comercial" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-04",
+      "title": "Vista aérea · Zona comercial",
+      "thumbnail": "assets/thumbs/pano-04.jpg",
+      "src": "assets/360/pano-04.jpg",
+      "initialView": { "yaw": -30, "pitch": -12, "fov": 70 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p04-nav-03", "type": "nav", "position": { "yaw": -95, "pitch": -14 }, "target": "pano-03", "label": "Entorno urbano" },
+        { "id": "p04-nav-02", "type": "nav", "position": { "yaw": 35, "pitch": -18 }, "target": "pano-02", "label": "Hacia la bodega" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-05",
+      "title": "Interior · Nave principal",
+      "thumbnail": "assets/thumbs/pano-05.jpg",
+      "src": "assets/360/pano-05.jpg",
+      "initialView": { "yaw": 0, "pitch": 0, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p05-nav-07", "type": "nav", "position": { "yaw": 2, "pitch": -8 }, "target": "pano-07", "label": "Fondo de la nave" },
+        { "id": "p05-nav-06", "type": "nav", "position": { "yaw": -85, "pitch": -10 }, "target": "pano-06", "label": "Zona de camiones" },
+        { "id": "p05-nav-02", "type": "nav", "position": { "yaw": 160, "pitch": 8 }, "target": "pano-02", "label": "Salir · vista aérea" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-06",
+      "title": "Interior · Nave principal II",
+      "thumbnail": "assets/thumbs/pano-06.jpg",
+      "src": "assets/360/pano-06.jpg",
+      "initialView": { "yaw": 0, "pitch": 0, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p06-nav-05", "type": "nav", "position": { "yaw": 120, "pitch": -8 }, "target": "pano-05", "label": "Nave principal" },
+        { "id": "p06-nav-07", "type": "nav", "position": { "yaw": 5, "pitch": -8 }, "target": "pano-07", "label": "Zona de carga" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-07",
+      "title": "Interior · Zona de carga",
+      "thumbnail": "assets/thumbs/pano-07.jpg",
+      "src": "assets/360/pano-07.jpg",
+      "initialView": { "yaw": 0, "pitch": 0, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p07-nav-05", "type": "nav", "position": { "yaw": -175, "pitch": -8 }, "target": "pano-05", "label": "Nave principal" },
+        { "id": "p07-nav-08", "type": "nav", "position": { "yaw": 8, "pitch": -6 }, "target": "pano-08", "label": "Nave y oficinas" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-08",
+      "title": "Interior · Nave y oficinas",
+      "thumbnail": "assets/thumbs/pano-08.jpg",
+      "src": "assets/360/pano-08.jpg",
+      "initialView": { "yaw": 30, "pitch": 0, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p08-info-oficinas", "type": "info", "position": { "yaw": 62, "pitch": -4 }, "icon": "pulse",
+          "content": {
+            "title": "Área de oficinas",
+            "html": "<p>Módulos de oficina y entrepiso dentro de la nave, junto a la zona de maniobras.</p>"
+          } },
+        { "id": "p08-nav-07", "type": "nav", "position": { "yaw": -170, "pitch": -8 }, "target": "pano-07", "label": "Zona de carga" },
+        { "id": "p08-nav-09", "type": "nav", "position": { "yaw": -60, "pitch": -8 }, "target": "pano-09", "label": "Andén de carga" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-09",
+      "title": "Interior · Andén de carga",
+      "thumbnail": "assets/thumbs/pano-09.jpg",
+      "src": "assets/360/pano-09.jpg",
+      "initialView": { "yaw": 40, "pitch": -4, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p09-info-anden", "type": "info", "position": { "yaw": 95, "pitch": -12 }, "icon": "pulse",
+          "content": {
+            "title": "Andén de carga",
+            "html": "<p>Andén para carga y descarga al interior de la nave, con rampa de acceso vehicular.</p>"
+          } },
+        { "id": "p09-nav-08", "type": "nav", "position": { "yaw": -140, "pitch": -6 }, "target": "pano-08", "label": "Nave y oficinas" },
+        { "id": "p09-nav-10", "type": "nav", "position": { "yaw": 25, "pitch": -6 }, "target": "pano-10", "label": "Oficinas y rampa" }
+      ]
+    },
+    {
+      "type": "pano360",
+      "id": "pano-10",
+      "title": "Interior · Oficinas y rampa",
+      "thumbnail": "assets/thumbs/pano-10.jpg",
+      "src": "assets/360/pano-10.jpg",
+      "initialView": { "yaw": 10, "pitch": 0, "fov": 75 },
+      "northOffset": null,
+      "hotspots": [
+        { "id": "p10-nav-09", "type": "nav", "position": { "yaw": -150, "pitch": -6 }, "target": "pano-09", "label": "Andén de carga" },
+        { "id": "p10-nav-05", "type": "nav", "position": { "yaw": 60, "pitch": -6 }, "target": "pano-05", "label": "Volver al acceso" }
+      ]
+    },
+    {
+      "type": "potree",
+      "id": "nube-agua-blanca",
+      "title": "Nube de puntos · Agua Blanca",
+      "thumbnail": "assets/thumbs/nube-agua-blanca.jpg",
+      "cloud": {
+        "path": "/assets/_potree/clouds/agua-blanca-veg/metadata.json",
+        "pointBudget": 1500000,
+        "pointBudgetMobile": 500000,
+        "edl": true
+      },
+      "initialView": {
+        "position": [565582, 2252690, 2405],
+        "target": [565582, 2252935, 2225]
+      },
+      "tools": { "measure": true },
+      "hotspots": []
+    },
+    {
+      "type": "ortho",
+      "id": "ortho-agua-blanca",
+      "title": "Ortofoto · Agua Blanca",
+      "thumbnail": "assets/thumbs/ortho-agua-blanca.jpg",
+      "tiles": {
+        "url": "/assets/_potree/clouds/agua-blanca/ortho_tiles/{z}/{x}/{y}.png",
+        "tms": true,
+        "minZoom": 16,
+        "maxNativeZoom": 21,
+        "maxZoom": 23,
+        "clip": "assets/geo/ortho_clip.geojson"
+      },
+      "basemap": true,
+      "layers": [
+        {
+          "type": "predio",
+          "src": "assets/geo/predio.geojson",
+          "trace": true,
+          "style": { "stroke": "#7BC142", "fill": "rgba(123,193,66,0.14)", "weight": 3 },
+          "popup": {
+            "title": "Predio Agua Blanca · 1.15 ha",
+            "html": "<p>Deslinde real del predio digitalizado del plano topográfico: 69 vértices, incluido el lindero curvo que sigue el arroyo.</p>"
+          }
+        },
+        {
+          "type": "contours",
+          "src": "assets/geo/contours-wgs84.geojson",
+          "toggle": true,
+          "style": { "stroke": "#C5E4A0", "weight": 1 }
+        }
+      ],
+      "hotspots": []
+    },
+    {
+      "type": "splat",
+      "id": "splat-bodega",
+      "title": "Bodega 3D inmersiva",
+      "thumbnail": "assets/thumbs/splat-bodega.jpg",
+      "src": null
+    }
+  ],
+  "ext": {}
+}

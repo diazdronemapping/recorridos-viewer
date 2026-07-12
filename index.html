@@ -1,0 +1,290 @@
+<!doctype html>
+<!-- Catálogo público de recorridos · regenerado por dev_server_recorridos.py
+     (render_catalog_index) — NO editar el index generado: edita este template
+     (artefactos_html/recorridos/deploy/catalog-template.html).
+     Contrato con el server: placeholders CARDS · CATALOG_JSON · OG_IMAGE
+     (con dobles llaves — aquí sin llaves a propósito: el replace es global).
+     Diseño L4: cards server-rendered (funcionan SIN JS) + preview vivo
+     (desktop: hover sostenido ≥350 ms · móvil: tap 1 = preview, tap 2 = entrar).
+     Self-contained a propósito: cero CDNs, cero dependencias. -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recorridos virtuales — Drone Mapping MX</title>
+<meta name="description" content="Catálogo de recorridos virtuales de Drone Mapping MX: panorámicas 360 interactivas, nubes de puntos 3D y mapas aéreos de alta resolución, capturados con dron.">
+<link rel="canonical" href="https://recorridos.dronemapping.mx/">
+<meta name="theme-color" content="#101512">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Drone Mapping MX">
+<meta property="og:title" content="Recorridos virtuales — Drone Mapping MX">
+<meta property="og:description" content="Panorámicas 360 interactivas, nubes de puntos 3D y mapas aéreos de alta resolución — capturados con dron, listos para explorar.">
+<meta property="og:url" content="https://recorridos.dronemapping.mx/">
+<meta property="og:image" content="https://recorridos.dronemapping.mx/tours/santa-maria/assets/thumbs/pano-01.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%237BC142'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#101512; --bg-deep:#0b0f0c;
+    --panel:#161d18; --line:#233026; --line-soft:#1b241e;
+    --text:#e8efe9; --muted:#9db3a2; --faint:#5f7263;
+    --accent:#7BC142; --accent-soft:rgba(123,193,66,.10); --accent-line:rgba(123,193,66,.38);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    min-height:100vh;display:flex;flex-direction:column;
+    color:var(--text);
+    font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1100px 520px at 88% -12%, rgba(123,193,66,.07), transparent 62%),
+      radial-gradient(900px 460px at -12% -4%, rgba(90,173,224,.05), transparent 58%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 22px}
+
+  /* ---------- header ---------- */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:26px}
+  .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--text);min-width:0}
+  .brand__mark{width:30px;height:30px;flex:none}
+  .brand__name{font-size:.78rem;font-weight:700;letter-spacing:.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand__name b{color:var(--accent);font-weight:inherit}
+  .brand__sep{color:var(--faint);padding:0 .45em}
+  .brand__sec{color:var(--muted);font-weight:600;letter-spacing:.14em}
+  .top__site{
+    flex:none;display:inline-flex;align-items:center;gap:7px;
+    font-size:.82rem;font-weight:600;color:var(--muted);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;padding:8px 15px;
+    transition:color .2s,border-color .2s;
+  }
+  .top__site:hover,.top__site:focus-visible{color:var(--accent);border-color:var(--accent-line)}
+  .top__site svg{flex:none}
+  @media (max-width:560px){
+    /* móvil: la marca completa ("… · RECORRIDOS") envuelve, nunca se trunca */
+    .brand__name{white-space:normal;font-size:.7rem;letter-spacing:.15em;line-height:1.6}
+    .top__site{padding:7px 12px;font-size:.78rem}
+  }
+
+  /* ---------- hero ---------- */
+  .hero{padding:44px 0 8px}
+  h1{font-size:clamp(1.9rem,4.5vw,2.6rem);line-height:1.12;letter-spacing:-.015em;font-weight:750}
+  h1 b{color:var(--accent);font-weight:inherit}
+  .hero__sub{color:var(--muted);max-width:56ch;margin-top:10px;font-size:.98rem}
+
+  /* ---------- grid 1/2/3 ---------- */
+  main{display:grid;gap:22px;grid-template-columns:1fr;padding:28px 22px 48px}
+  @media (min-width:640px){main{grid-template-columns:repeat(2,1fr)}}
+  @media (min-width:1024px){main{grid-template-columns:repeat(3,1fr)}}
+
+  /* ---------- card ---------- */
+  .card{
+    position:relative;display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;text-decoration:none;color:inherit;
+    transition:border-color .25s,transform .25s,box-shadow .25s;
+  }
+  .card:hover,.card.is-live{
+    border-color:var(--accent-line);
+    transform:translateY(-2px);
+    box-shadow:0 14px 30px -14px rgba(0,0,0,.75);
+  }
+  .card:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .card__media{position:relative;display:block;aspect-ratio:2/1;background:var(--bg-deep);overflow:hidden}
+  .card__thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s ease}
+  .card:hover .card__thumb{transform:scale(1.04)}
+  .card__thumb--empty{
+    position:absolute;inset:0;display:block;
+    background:
+      radial-gradient(70% 120% at 50% 0%, rgba(123,193,66,.12), transparent 70%),
+      linear-gradient(160deg,#141b16,var(--bg-deep));
+  }
+  .card__media::after{ /* velo para que el chip EN VIVO siempre lea bien */
+    content:"";position:absolute;inset:auto 0 0 0;height:34%;z-index:1;pointer-events:none;
+    background:linear-gradient(to top,rgba(11,15,12,.45),transparent);
+  }
+  .card__body{padding:15px 17px 17px;display:flex;flex-direction:column;gap:4px}
+  .card__title{font-size:1.06rem;font-weight:650;letter-spacing:-.01em;line-height:1.3}
+  .card__meta{color:var(--muted);font-size:.84rem}
+  .card__badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .card__badge{
+    font-size:.66rem;font-weight:700;letter-spacing:.1em;
+    color:var(--accent);background:var(--accent-soft);
+    border:1px solid var(--accent-line);border-radius:999px;padding:3px 9px;
+  }
+
+  /* ---------- preview vivo (lo monta el JS) ---------- */
+  .card__preview{
+    position:absolute;inset:0;width:100%;height:100%;border:0;z-index:2;
+    pointer-events:none; /* el preview es un teaser: el clic/tap sigue siendo del <a> */
+    opacity:0;transition:opacity .35s ease;background:transparent;
+  }
+  .card__preview.is-ready{opacity:1}
+  .card__liveui{
+    position:absolute;top:10px;right:10px;z-index:3;pointer-events:none;
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:.64rem;font-weight:700;letter-spacing:.14em;color:#dff3cd;
+    background:rgba(11,15,12,.74);border:1px solid var(--accent-line);
+    border-radius:999px;padding:4px 10px;backdrop-filter:blur(4px);
+    opacity:0;transition:opacity .25s;
+  }
+  .card.is-live .card__liveui{opacity:1}
+  .card__livedot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:dmPulse 1.6s ease-in-out infinite}
+  @keyframes dmPulse{50%{opacity:.35}}
+  .card__tapcta{
+    position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;pointer-events:none;
+    font-size:.72rem;font-weight:600;color:var(--text);white-space:nowrap;
+    background:rgba(11,15,12,.74);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;backdrop-filter:blur(4px);
+    opacity:0;transition:opacity .25s;
+  }
+  @media (pointer:coarse){.card.is-live .card__tapcta{opacity:1}}
+
+  /* ---------- estado vacío ---------- */
+  .empty{
+    grid-column:1/-1;text-align:center;color:var(--muted);
+    padding:76px 20px;border:1px dashed var(--line);border-radius:16px;
+  }
+  .empty svg{display:block;margin:0 auto 16px;opacity:.55}
+  .empty__title{color:var(--text);font-weight:650;font-size:1.06rem}
+  .empty__sub{font-size:.9rem;margin-top:5px}
+
+  /* ---------- footer ---------- */
+  footer{margin-top:auto;border-top:1px solid var(--line-soft)}
+  .foot{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    padding-top:24px;padding-bottom:34px;color:var(--faint);font-size:.84rem;
+  }
+  .foot a{color:var(--muted);text-decoration:none;transition:color .2s}
+  .foot a:hover,.foot a:focus-visible{color:var(--accent)}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+    .card:hover,.card.is-live{transform:none}
+    .card:hover .card__thumb{transform:none}
+  }
+</style>
+</head>
+<body>
+<header class="top wrap">
+  <a class="brand" href="https://dronemapping.mx" rel="noopener">
+    <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+      <g fill="none" stroke="#7BC142" stroke-width="2" stroke-linecap="round">
+        <line x1="16" y1="16" x2="8" y2="8"/><line x1="16" y1="16" x2="24" y2="8"/>
+        <line x1="16" y1="16" x2="8" y2="24"/><line x1="16" y1="16" x2="24" y2="24"/>
+        <circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/>
+        <circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/>
+      </g>
+      <circle cx="16" cy="16" r="3.4" fill="#7BC142"/>
+    </svg>
+    <span class="brand__name">DRONE MAPPING <b>MX</b><span class="brand__sep">·</span><span class="brand__sec">RECORRIDOS</span></span>
+  </a>
+  <a class="top__site" href="https://dronemapping.mx" rel="noopener">
+    dronemapping.mx
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
+  </a>
+</header>
+
+<section class="hero wrap">
+  <h1>Recorridos <b>virtuales</b></h1>
+  <p class="hero__sub">Panorámicas 360 interactivas, nubes de puntos 3D y mapas aéreos de alta resolución — capturados con dron, listos para explorar desde cualquier dispositivo.</p>
+</section>
+
+<main id="catalogo" class="wrap" aria-label="Catálogo de recorridos">
+<a class="card" href="/santa-maria/" data-slug="santa-maria"><span class="card__media"><img class="card__thumb" src="/tours/santa-maria/assets/thumbs/pano-01.jpg" alt="" loading="lazy"></span><div class="card__body"><h2 class="card__title">Recorrido Santa María</h2><p class="card__meta">13 escenas</p><div class="card__badges"><span class="card__badge">360</span><span class="card__badge">NUBE 3D</span><span class="card__badge">MAPA</span><span class="card__badge">REALISTA</span></div></div></a>
+</main>
+
+<footer>
+  <div class="foot wrap">
+    <p>© Drone Mapping MX — topografía aérea y experiencias interactivas.</p>
+    <a href="https://dronemapping.mx" rel="noopener">dronemapping.mx</a>
+  </div>
+</footer>
+
+<!-- catálogo embebido como data (mismo JSON que /catalog.json) -->
+<script type="application/json" id="catalog-data">{"version": 1, "generated": "2026-07-12T12:44:18+00:00", "tours": [{"id": "santa-maria", "title": "Recorrido Santa María", "published": "2026-07-12T12:44:17+00:00", "thumb": "tours/santa-maria/assets/thumbs/pano-01.jpg", "scenes": {"count": 13, "types": ["ortho", "pano360", "potree", "splat"]}, "url": "/santa-maria/"}]}</script>
+
+<script>
+/* Preview vivo — progressive enhancement sobre las cards server-rendered.
+   Desktop (pointer:fine): hover sostenido >=350 ms monta UN iframe kiosk del
+   viewer sobre la miniatura; mouseleave lo desmonta a los ~500 ms. Máximo 1
+   vivo a la vez. Móvil (coarse): tap 1 = preview vivo, tap 2 = entrar al tour.
+   prefers-reduced-motion => sin previews: las cards quedan como links puros. */
+(function () {
+  'use strict';
+  var cards = Array.prototype.slice.call(document.querySelectorAll('a.card[data-slug]'));
+  if (!cards.length || !window.matchMedia) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var FINE = matchMedia('(pointer: fine)').matches;
+  var HOVER_MS = 350, LEAVE_MS = 500;
+  var live = null, hoverTimer = 0, leaveTimer = 0;
+
+  function mount (card) {
+    if (live && live.card === card) return;
+    unmount(); // máx 1 preview vivo a la vez
+    var slug = card.getAttribute('data-slug');
+    var media = card.querySelector('.card__media');
+    if (!slug || !media) return;
+    var f = document.createElement('iframe');
+    f.className = 'card__preview';
+    // relativa a propósito: funciona en el subdominio Y en la URL intermedia
+    f.src = 'viewer/?tour=' + encodeURIComponent(slug) + '&kiosk=1&embed=1';
+    f.title = 'Vista previa en vivo';
+    f.setAttribute('aria-hidden', 'true');
+    f.tabIndex = -1;
+    f.addEventListener('load', function () { f.classList.add('is-ready'); });
+    var ui = document.createElement('span');
+    ui.className = 'card__liveui';
+    ui.setAttribute('aria-hidden', 'true');
+    ui.innerHTML = '<span class="card__livedot"></span>EN VIVO';
+    var cta = document.createElement('span');
+    cta.className = 'card__tapcta';
+    cta.setAttribute('aria-hidden', 'true');
+    cta.textContent = 'Toca otra vez para entrar';
+    media.appendChild(f); media.appendChild(ui); media.appendChild(cta);
+    card.classList.add('is-live');
+    live = { card: card, iframe: f, ui: ui, cta: cta };
+  }
+
+  function unmount () {
+    if (!live) return;
+    live.iframe.remove(); live.ui.remove(); live.cta.remove();
+    live.card.classList.remove('is-live');
+    live = null;
+  }
+
+  if (FINE) {
+    cards.forEach(function (card) {
+      card.addEventListener('mouseenter', function () {
+        if (live && live.card === card) { clearTimeout(leaveTimer); return; }
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(function () { mount(card); }, HOVER_MS);
+      });
+      card.addEventListener('mouseleave', function () {
+        clearTimeout(hoverTimer);
+        if (live && live.card === card) {
+          clearTimeout(leaveTimer);
+          leaveTimer = setTimeout(function () {
+            if (live && live.card === card) unmount();
+          }, LEAVE_MS);
+        }
+      });
+    });
+  } else {
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      var card = t && t.closest ? t.closest('a.card[data-slug]') : null;
+      if (!card) return;
+      if (live && live.card === card) return; // 2º tap → navegación natural
+      ev.preventDefault();                    // 1º tap → preview vivo
+      mount(card);
+    }, true);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) unmount(); // pestaña en fondo: liberar GPU
+  });
+})();
+</script>
+</body>
+</html>

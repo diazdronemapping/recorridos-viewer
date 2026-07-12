@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "generated": "2026-07-12T12:44:18+00:00",
+  "tours": [
+    {
+      "id": "santa-maria",
+      "title": "Recorrido Santa María",
+      "published": "2026-07-12T12:44:17+00:00",
+      "thumb": "tours/santa-maria/assets/thumbs/pano-01.jpg",
+      "scenes": {
+        "count": 13,
+        "types": [
+          "ortho",
+          "pano360",
+          "potree",
+          "splat"
+        ]
+      },
+      "url": "/santa-maria/"
+    }
+  ]
+}
