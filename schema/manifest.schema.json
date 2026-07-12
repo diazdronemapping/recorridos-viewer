@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://presentacion.dronemapping.mx/recorridos/schema/manifest.schema.json",
+  "title": "Recorridos manifest v1",
+  "description": "Contrato entre el Studio (escribe) y el Viewer (lee). Ángulos en GRADOS. Paths relativos = dentro del bundle del tour; con / inicial = raíz del sitio (assets pesados compartidos). El viewer IGNORA con warning tipos/campos desconocidos (forward-compat); manifestVersion sube solo en breaking change.",
+  "type": "object",
+  "required": ["manifestVersion", "id", "meta", "start", "scenes"],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "meta": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string" },
+        "client": { "type": "string" },
+        "description": { "type": "string" },
+        "locale": { "type": "string", "default": "es-MX" },
+        "created": { "type": "string" },
+        "updated": { "type": "string" }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "properties": {
+        "logo": { "$ref": "#/$defs/assetPath" },
+        "nadirLogo": { "$ref": "#/$defs/assetPath" },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "accent": { "$ref": "#/$defs/cssColor" },
+            "bg": { "$ref": "#/$defs/cssColor" }
+          }
+        }
+      }
+    },
+    "access": {
+      "type": "object",
+      "properties": {
+        "visibility": { "enum": ["public", "unlisted", "gated"], "default": "public" }
+      }
+    },
+    "start": {
+      "type": "object",
+      "required": ["sceneId"],
+      "properties": { "sceneId": { "type": "string" } }
+    },
+    "idle": {
+      "type": "object",
+      "description": "Auto-rotación en reposo (solo escenas pano360).",
+      "properties": {
+        "autorotateAfter": { "type": "number", "minimum": 0, "description": "Segundos de inactividad antes de rotar." },
+        "rpm": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 }
+      }
+    },
+    "music": { "$ref": "#/$defs/music" },
+    "motion": {
+      "type": "object",
+      "description": "Sensación de la cámara en panoramas (aplica a todo el tour).",
+      "properties": {
+        "moveSpeed": { "type": "number", "minimum": 0.2, "maximum": 3, "default": 1, "description": "Multiplicador de velocidad de arrastre/teclado." },
+        "inertia": { "type": "boolean", "default": true, "description": "Frenado suave al soltar el arrastre." }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "description": "Qué chrome mostrar. kiosk=true oculta título/menú/planta/controles; un flag explícito gana sobre kiosk. ?kiosk=1 en la URL equivale a kiosk:true. El chip de autopilot nunca se oculta (es el control de escape).",
+      "properties": {
+        "kiosk": { "type": "boolean", "default": false },
+        "title": { "type": "boolean" },
+        "menu": { "type": "boolean" },
+        "plan": { "type": "boolean" },
+        "controls": { "type": "boolean" }
+      }
+    },
+    "autopilot": {
+      "type": "object",
+      "description": "Vuelo curado por escenas/hotspots. narration se difiere al primer caso real.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sceneId"],
+            "properties": {
+              "sceneId": { "type": "string" },
+              "lookAt": { "$ref": "#/$defs/panoAngles" },
+              "dwell": { "type": "number", "minimum": 0, "default": 4, "description": "Segundos en el step tras el paneo." }
+            }
+          }
+        },
+        "narration": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/assetPath" }]
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "description": "Planta/mapa espacial compartida del tour (chrome). type image = px sobre la imagen; type ortho = mini-mapa geo [lat,lng].",
+      "required": ["type", "pins"],
+      "properties": {
+        "type": { "enum": ["image", "ortho"] },
+        "src": { "$ref": "#/$defs/assetPath", "description": "Imagen de planta (type image). Convención: exportar norte-arriba." },
+        "size": {
+          "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2,
+          "description": "Dimensiones px de la imagen de planta [w,h]."
+        },
+        "bearing": { "type": "number", "default": 0, "description": "Grados de rotación de la planta vs norte (0 = norte-arriba)." },
+        "radar": { "type": "boolean", "default": true },
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sceneId", "position"],
+            "properties": {
+              "sceneId": { "type": "string" },
+              "position": {
+                "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2,
+                "description": "[x,y] px si plan.type=image · [lat,lng] si plan.type=ortho."
+              }
+            }
+          }
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/scene" }
+    },
+    "ext": { "type": "object", "description": "Namespace libre para experimentos. El viewer no lo interpreta." }
+  },
+
+  "$defs": {
+    "assetPath": { "type": "string", "minLength": 1 },
+    "music": {
+      "type": "object",
+      "description": "Música ambiente. Reproduce tras primer gesto del usuario (política de autoplay). En sceneBase sustituye a la del tour mientras la escena está activa.",
+      "required": ["src"],
+      "properties": {
+        "src": { "$ref": "#/$defs/assetPath" },
+        "loop": { "type": "boolean", "default": true },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.4 }
+      }
+    },
+    "cssColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+    "panoAngles": {
+      "type": "object",
+      "required": ["yaw", "pitch"],
+      "properties": {
+        "yaw": { "type": "number", "minimum": -180, "maximum": 360 },
+        "pitch": { "type": "number", "minimum": -90, "maximum": 90 }
+      }
+    },
+    "xyz": {
+      "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3,
+      "description": "[x,y,z] en el CRS de la nube (UTM)."
+    },
+    "latlng": {
+      "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2,
+      "description": "[lat,lng] WGS84."
+    },
+    "hotspotContent": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string" },
+        "html": { "type": "string" },
+        "media": {
+          "type": "object",
+          "required": ["kind", "src"],
+          "properties": {
+            "kind": { "enum": ["image", "video", "audio"] },
+            "src": { "$ref": "#/$defs/assetPath" }
+          }
+        },
+        "gallery": {
+          "type": "array",
+          "description": "Imágenes adicionales; el viewer las muestra como galería con visor (lightbox).",
+          "items": { "$ref": "#/$defs/assetPath" }
+        },
+        "embed": {
+          "type": "object",
+          "description": "Video o mapa externo. El viewer SOLO renderiza URLs de su lista blanca (YouTube, Vimeo, Google Maps embed, Sketchfab, Matterport); cualquier otra se ignora.",
+          "required": ["url"],
+          "properties": { "url": { "type": "string" } }
+        },
+        "layout": {
+          "enum": ["panel", "lightbox"],
+          "default": "panel",
+          "description": "lightbox = al tocar el hotspot se abre la imagen en grande directamente, sin panel lateral (requiere al menos una imagen)."
+        }
+      }
+    },
+    "hotspotBase": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "description": "Identidad estable — requerida por el builder (round-trip) y el deep-link." },
+        "type": { "type": "string" },
+        "icon": { "type": "string", "description": "Id de la biblioteca de iconos del viewer (casa, recamara, bano, cocina, alberca, cochera, arbol, agua, luz, camino, lindero, vista, estrella, alerta, documento, camara). Desconocido u omitido → icono por defecto del tipo." }
+      }
+    },
+
+    "panoHotspot": {
+      "allOf": [{ "$ref": "#/$defs/hotspotBase" }],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "nav" },
+            "position": { "$ref": "#/$defs/panoAngles" },
+            "target": { "type": "string" },
+            "label": { "type": "string" }
+          },
+          "required": ["position", "target"]
+        },
+        {
+          "properties": {
+            "type": { "const": "info" },
+            "position": { "$ref": "#/$defs/panoAngles" },
+            "content": { "$ref": "#/$defs/hotspotContent" }
+          },
+          "required": ["position", "content"]
+        },
+        {
+          "properties": {
+            "type": { "const": "download" },
+            "position": { "$ref": "#/$defs/panoAngles" },
+            "src": { "$ref": "#/$defs/assetPath", "description": "Archivo del bundle que se descarga al tocar (plano, ficha, PDF…)." },
+            "label": { "type": "string" },
+            "filename": { "type": "string", "description": "Nombre sugerido del archivo descargado (default: el del asset)." }
+          },
+          "required": ["position", "src"]
+        },
+        {
+          "properties": {
+            "type": { "const": "link" },
+            "position": { "$ref": "#/$defs/panoAngles" },
+            "url": { "type": "string", "format": "uri" },
+            "label": { "type": "string" }
+          },
+          "required": ["position", "url"]
+        },
+        {
+          "properties": {
+            "type": { "const": "polygon" },
+            "positions": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/panoAngles" } },
+            "style": {
+              "type": "object",
+              "properties": {
+                "stroke": { "$ref": "#/$defs/cssColor" },
+                "fill": { "type": "string" }
+              }
+            },
+            "content": { "$ref": "#/$defs/hotspotContent" }
+          },
+          "required": ["positions"]
+        }
+      ]
+    },
+    "potreeHotspot": {
+      "allOf": [{ "$ref": "#/$defs/hotspotBase" }],
+      "properties": {
+        "type": { "enum": ["nav", "info", "link"] },
+        "position": { "$ref": "#/$defs/xyz" },
+        "target": { "type": "string" },
+        "label": { "type": "string" },
+        "url": { "type": "string" },
+        "content": { "$ref": "#/$defs/hotspotContent" }
+      },
+      "required": ["position"]
+    },
+    "orthoHotspot": {
+      "allOf": [{ "$ref": "#/$defs/hotspotBase" }],
+      "properties": {
+        "type": { "enum": ["nav", "info", "link"] },
+        "position": { "$ref": "#/$defs/latlng" },
+        "target": { "type": "string" },
+        "label": { "type": "string" },
+        "url": { "type": "string" },
+        "content": { "$ref": "#/$defs/hotspotContent" }
+      },
+      "required": ["position"]
+    },
+
+    "sceneBase": {
+      "type": "object",
+      "required": ["type", "id", "title"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "title": { "type": "string" },
+        "thumbnail": { "$ref": "#/$defs/assetPath" },
+        "music": { "$ref": "#/$defs/music" }
+      }
+    },
+
+    "scene": {
+      "oneOf": [
+        { "$ref": "#/$defs/scenePano360" },
+        { "$ref": "#/$defs/scenePotree" },
+        { "$ref": "#/$defs/sceneOrtho" },
+        { "$ref": "#/$defs/sceneSplat" }
+      ]
+    },
+
+    "scenePano360": {
+      "allOf": [{ "$ref": "#/$defs/sceneBase" }],
+      "properties": {
+        "type": { "const": "pano360" },
+        "src": { "$ref": "#/$defs/assetPath" },
+        "initialView": {
+          "type": "object",
+          "properties": {
+            "yaw": { "type": "number" },
+            "pitch": { "type": "number" },
+            "fov": { "type": "number", "minimum": 20, "maximum": 120, "default": 65 }
+          }
+        },
+        "northOffset": {
+          "oneOf": [{ "type": "number" }, { "type": "null" }],
+          "description": "Grados: bearing real del yaw=0 del pano. null = sin calibrar → el radar muestra pin sin cono."
+        },
+        "fovLimits": {
+          "type": "object",
+          "description": "Límites de zoom del panorama (FOV en grados). Debe cumplir 20 ≤ min < max ≤ 120; si no, el viewer usa 30–90.",
+          "properties": {
+            "min": { "type": "number", "minimum": 20, "maximum": 120 },
+            "max": { "type": "number", "minimum": 20, "maximum": 120 }
+          }
+        },
+        "panoData": {
+          "type": "object",
+          "description": "Panorama parcial (equirectangular recortado) declarado a mano. PSV también lee el XMP GPano del JPEG automáticamente — esto es el override manual.",
+          "properties": {
+            "fullWidth": { "type": "number" },
+            "fullHeight": { "type": "number" },
+            "croppedWidth": { "type": "number" },
+            "croppedHeight": { "type": "number" },
+            "croppedX": { "type": "number" },
+            "croppedY": { "type": "number" }
+          }
+        },
+        "intro": {
+          "enum": ["littlePlanet"],
+          "description": "Efecto de entrada al abrir el recorrido en esta escena (solo aplica a la escena de arranque, una vez por sesión; se cancela con cualquier gesto y respeta prefers-reduced-motion)."
+        },
+        "hotspots": { "type": "array", "items": { "$ref": "#/$defs/panoHotspot" } }
+      },
+      "required": ["src"]
+    },
+
+    "scenePotree": {
+      "allOf": [{ "$ref": "#/$defs/sceneBase" }],
+      "properties": {
+        "type": { "const": "potree" },
+        "cloud": {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "path": { "type": "string", "pattern": "^/assets/_potree/clouds/", "description": "Ruta al metadata.json (2.0) o cloud.js (1.7). Whitelist de prefijo por seguridad." },
+            "pointBudget": { "type": "integer", "minimum": 100000, "default": 1500000 },
+            "pointBudgetMobile": { "type": "integer", "minimum": 100000, "default": 500000 },
+            "edl": { "type": "boolean", "default": true }
+          }
+        },
+        "initialView": {
+          "type": "object",
+          "properties": {
+            "position": { "$ref": "#/$defs/xyz" },
+            "target": { "$ref": "#/$defs/xyz" }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "properties": { "measure": { "type": "boolean", "default": true } }
+        },
+        "hotspots": { "type": "array", "items": { "$ref": "#/$defs/potreeHotspot" } }
+      },
+      "required": ["cloud"]
+    },
+
+    "sceneOrtho": {
+      "allOf": [{ "$ref": "#/$defs/sceneBase" }],
+      "properties": {
+        "type": { "const": "ortho" },
+        "tiles": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string", "description": "Template XYZ {z}/{x}/{y}." },
+            "tms": { "type": "boolean", "default": false },
+            "minZoom": { "type": "integer" },
+            "maxNativeZoom": { "type": "integer" },
+            "maxZoom": { "type": "integer" },
+            "clip": { "$ref": "#/$defs/assetPath", "description": "GeoJSON de recorte (boundary-canvas)." }
+          }
+        },
+        "basemap": { "type": "boolean", "default": true, "description": "Satélite Esri debajo del ortho." },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "src"],
+            "properties": {
+              "type": { "enum": ["predio", "contours", "geojson"] },
+              "src": { "$ref": "#/$defs/assetPath" },
+              "trace": { "type": "boolean", "default": false, "description": "Animación de trazo del deslinde al entrar." },
+              "toggle": { "type": "boolean", "default": false },
+              "style": {
+                "type": "object",
+                "properties": {
+                  "stroke": { "$ref": "#/$defs/cssColor" },
+                  "fill": { "type": "string" },
+                  "weight": { "type": "number" }
+                }
+              },
+              "popup": { "$ref": "#/$defs/hotspotContent" }
+            }
+          }
+        },
+        "hotspots": { "type": "array", "items": { "$ref": "#/$defs/orthoHotspot" } }
+      },
+      "required": ["tiles"]
+    },
+
+    "sceneSplat": {
+      "allOf": [{ "$ref": "#/$defs/sceneBase" }],
+      "properties": {
+        "type": { "const": "splat" },
+        "src": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/assetPath" }],
+          "description": "null = motor diferido (placeholder). Fase 1.5: .sog/.spz/.splat comprimido de PostShot."
+        }
+      },
+      "required": ["src"]
+    }
+  }
+}

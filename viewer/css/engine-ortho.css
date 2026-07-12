@@ -1,0 +1,78 @@
+/* engine-ortho.css — tema dark de Leaflet para la escena ortofoto (Recorridos).
+   Lo inyecta engine-ortho.js; solo aplica dentro de .rc-engine--ortho. */
+
+/* NOTA: el layout crítico de .rc-ortho-map (position/inset/isolation/bg) va
+   INLINE desde engine-ortho.js — este <link> carga async y Leaflet necesita
+   el tamaño correcto en el instante de crear el mapa. Aquí solo theming. */
+
+.rc-engine--ortho .leaflet-container {
+  background: #1A1A1A;
+  font-family: var(--rc-font-body, 'Work Sans', 'Segoe UI', sans-serif);
+  outline: none;
+}
+
+/* El wrapper del divIcon va limpio: el estilo lo pone .rc-hotspot (viewer.css) */
+.rc-ortho-hotspot { background: transparent; border: 0; }
+
+/* Esquinas de controles: librar el chrome del viewer
+   (menu-toggle en bottom-right · rc-controls en bottom-left · plan-widget
+   280px de ancho en top-right → el control de capas va a su izquierda) */
+.rc-engine--ortho .leaflet-bottom.leaflet-right {
+  margin-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+.rc-engine--ortho .leaflet-bottom.leaflet-left {
+  margin-left: calc(56px + env(safe-area-inset-left, 0px));
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+.rc-engine--ortho .leaflet-top.leaflet-right { margin-top: 74px; margin-right: 296px; }
+@media (max-width: 768px) {
+  /* en móvil el plan-widget es más angosto (200px) — recuperar espacio */
+  .rc-engine--ortho .leaflet-top.leaflet-right { margin-top: 64px; margin-right: 216px; }
+}
+
+/* Zoom (y cualquier .leaflet-bar) en dark */
+.rc-engine--ortho .leaflet-bar { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); }
+.rc-engine--ortho .leaflet-bar a {
+  background: rgba(26, 26, 26, 0.88);
+  color: #EAEAEA;
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+.rc-engine--ortho .leaflet-bar a:hover,
+.rc-engine--ortho .leaflet-bar a:focus {
+  background: rgba(123, 193, 66, 0.3);
+  color: #fff;
+}
+.rc-engine--ortho .leaflet-bar a.leaflet-disabled {
+  background: rgba(26, 26, 26, 0.6);
+  color: #666;
+}
+
+/* Toggles de overlays propios (curvas de nivel, etc.) — chips con label
+   visible, estilo del chrome del viewer (valores crudos: este CSS también
+   carga en el Studio, donde las variables --rc-* no existen) */
+.rc-ortho-toggles { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.rc-ortho-toggle {
+  min-height: 44px; padding: 0 16px;
+  border: 1px solid #333333; border-radius: 8px;
+  background: rgba(26, 26, 26, 0.82); color: #FFFFFF;
+  font: 13px var(--rc-font-body, 'Work Sans', 'Segoe UI', sans-serif);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transition: border-color 200ms, color 200ms, background 200ms;
+}
+.rc-ortho-toggle:hover { border-color: #7BC142; color: #7BC142; }
+.rc-ortho-toggle.is-on {
+  border-color: #7BC142; color: #7BC142; background: rgba(123, 193, 66, 0.1);
+}
+.rc-ortho-toggle:focus-visible { outline: 2px solid #7BC142; outline-offset: 2px; }
+
+/* Attribution (Esri la exige) — discreta pero visible */
+.rc-engine--ortho .leaflet-control-attribution {
+  background: rgba(26, 26, 26, 0.65);
+  color: rgba(234, 234, 234, 0.75);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 8px 8px 0 0;
+}
+.rc-engine--ortho .leaflet-control-attribution a { color: #7BC142; }

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Recorridos · Drone Mapping MX</title>
+<meta name="description" content="Recorrido virtual interactivo — Drone Mapping MX">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%237BC142'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./vendor/psv/core.css">
+<link rel="stylesheet" href="./vendor/psv/markers-plugin.css">
+<link rel="stylesheet" href="./css/viewer.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js",
+    "@photo-sphere-viewer/core": "./vendor/psv/core.module.js",
+    "@photo-sphere-viewer/markers-plugin": "./vendor/psv/markers-plugin.module.js",
+    "@photo-sphere-viewer/virtual-tour-plugin": "./vendor/psv/virtual-tour-plugin.module.js",
+    "@photo-sphere-viewer/autorotate-plugin": "./vendor/psv/autorotate-plugin.module.js",
+    "@photo-sphere-viewer/gyroscope-plugin": "./vendor/psv/gyroscope-plugin.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app" class="rc-app">
+  <!-- Engines montan aquí (pano360 / ortho / splat) -->
+  <main id="scene-host" class="rc-scene-host" aria-live="polite"></main>
+  <!-- El iframe Potree vive aparte para keep-alive con display:none -->
+  <div id="scene-host-potree" class="rc-scene-host rc-scene-host--potree" hidden></div>
+
+  <!-- Transición entre escenas -->
+  <div id="fade-layer" class="rc-fade" aria-hidden="true"></div>
+
+  <!-- Fallo de carga de escena (P0: el visitante nunca queda atrapado) -->
+  <div id="scene-error" class="rc-error" hidden role="alertdialog" aria-label="Error al cargar la escena">
+    <div class="rc-error__box">
+      <p id="scene-error-msg" class="rc-error__msg"></p>
+      <p class="rc-error__hint">Revisa tu conexión e inténtalo de nuevo.</p>
+      <div class="rc-error__actions">
+        <button id="scene-error-retry" class="rc-error__btn rc-error__btn--primary">Reintentar</button>
+        <button id="scene-error-back" class="rc-error__btn">Volver</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chrome compartido -->
+  <header id="chrome-top" class="rc-top">
+    <img id="brand-logo" class="rc-top__logo" alt="Drone Mapping MX" hidden>
+    <div class="rc-top__titles">
+      <h1 id="tour-title" class="rc-top__title"></h1>
+      <p id="scene-title" class="rc-top__scene"></p>
+    </div>
+  </header>
+
+  <nav id="scene-menu" class="rc-menu" aria-label="Escenas del recorrido"></nav>
+  <button id="menu-toggle" class="rc-btn rc-menu-toggle" aria-expanded="true"
+          aria-controls="scene-menu" title="Escenas" aria-label="Escenas del recorrido">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  </button>
+
+  <div id="plan-widget" class="rc-plan" hidden>
+    <div class="rc-plan__frame">
+      <img id="plan-img" class="rc-plan__img" alt="Planta del sitio" draggable="false">
+      <svg id="plan-overlay" class="rc-plan__overlay"></svg>
+    </div>
+    <button id="plan-toggle" class="rc-btn rc-plan__toggle" title="Planta"
+            aria-expanded="true" aria-label="Mostrar u ocultar la planta del sitio">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 9 3 15 6 23 3 23 18 15 21 9 18 1 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+    </button>
+  </div>
+
+  <aside id="info-panel" class="rc-info" hidden aria-modal="true" role="dialog"
+         aria-label="Información del punto de interés">
+    <button id="info-close" class="rc-btn rc-info__close" title="Cerrar" aria-label="Cerrar panel">&times;</button>
+    <div id="info-content" class="rc-info__content"></div>
+  </aside>
+
+  <div id="chrome-controls" class="rc-controls">
+    <button id="btn-autopilot" class="rc-btn" title="Recorrido automático"
+            aria-label="Iniciar recorrido automático" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button id="btn-gyro" class="rc-btn" title="Giroscopio"
+            aria-label="Mover con el movimiento del teléfono" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>
+    </button>
+    <button id="btn-music" class="rc-btn" title="Música"
+            aria-label="Música ambiental" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </button>
+    <a id="btn-fullpage" class="rc-btn" title="Pantalla completa"
+       aria-label="Abrir el recorrido en pantalla completa" target="_blank" rel="noopener" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </a>
+    <button id="btn-fullscreen" class="rc-btn" title="Pantalla completa"
+            aria-label="Pantalla completa" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
+  </div>
+
+  <!-- Indicador de recorrido automático (P2: visible mientras corre; clic = detener) -->
+  <button id="autopilot-chip" class="rc-autopilot-chip" hidden>
+    <span class="rc-autopilot-chip__dot" aria-hidden="true"></span>
+    <span class="rc-autopilot-chip__label">Recorrido automático — toca para detener</span>
+    <span class="rc-autopilot-chip__step"></span>
+  </button>
+  <span id="autopilot-live" class="rc-sr-only" aria-live="polite"></span>
+
+  <!-- Hint de primera visita (P2): se retira al primer gesto o a los 4s -->
+  <div id="drag-hint" class="rc-hint" hidden aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6.5a1.5 1.5 0 0 0-3 0V11m0-2.5v-3a1.5 1.5 0 0 0-3 0V11m0-5.5v-1a1.5 1.5 0 0 0-3 0V13l-1.8-2.2a1.6 1.6 0 0 0-2.4 2.1L8 17.5c1.3 2.3 2.8 3.5 5.5 3.5 3.5 0 6-2.5 6-6V11"/><path d="M2.5 4.5h4M4.5 2.5l-2 2 2 2M21.5 4.5h-4M19.5 2.5l2 2-2 2"/></svg>
+    <p>Arrastra para mirar alrededor</p>
+  </div>
+
+  <div id="loading" class="rc-loading"><div class="rc-loading__ring"></div><p>Cargando recorrido…</p></div>
+  <div id="debug-hud" class="rc-hud" hidden></div>
+</div>
+
+<script type="module">
+  import { TourController } from './js/tour-controller.js';
+
+  const params = new URLSearchParams(location.search);
+  const tourId = params.get('tour') || 'santa-maria';
+  // ?manifest=<url> permite previsualizar cualquier tour (lo usa el Studio);
+  // por defecto se resuelve por slug bajo ../tours/.
+  const tourUrl = params.get('manifest') || `../tours/${tourId}/manifest.json`;
+  // ?embed=0|1 fuerza el modo sobre la auto-detección de iframe — el preview
+  // del Studio corre en iframe pero debe comportarse como standalone (rueda
+  // directa), review adversarial P2.
+  const embedParam = params.get('embed');
+  const controller = new TourController({
+    tourUrl,
+    debug: params.get('debug') === '1',
+    embed: embedParam === null ? null : embedParam === '1',
+    // pantalla limpia para embeds/kioscos sin tocar el manifest
+    kiosk: params.get('kiosk') === '1',
+  });
+  window.tour = controller; // consola + debug
+  controller.boot().catch(err => {
+    console.error('[recorridos] boot failed:', err);
+    // Si el fallo fue al montar la escena, el overlay de error de escena ya
+    // ofrece Reintentar/Volver — no duplicar mensaje.
+    const sceneError = document.getElementById('scene-error');
+    const loading = document.getElementById('loading');
+    if (sceneError && !sceneError.hidden) { loading.classList.add('is-done'); return; }
+    loading.innerHTML =
+      '<p class="rc-loading__error">No se pudo cargar el recorrido.<br>Revisa tu conexión e inténtalo de nuevo.</p>' +
+      '<details class="rc-loading__detail"><summary>Detalle técnico</summary><pre></pre></details>';
+    loading.querySelector('pre').textContent = String(err?.message || err);
+  });
+</script>
+</body>
+</html>
