@@ -18,12 +18,15 @@
  *   recrea en el próximo show().
  */
 
+import { toCloudUrl, POTREE_SCENE_URL } from '../site-config.js';
+
 // Primer load real (Pages + reload-once del SW) puede tardar >20 s; el caso
 // "nube inaccesible" ya NO llega aquí (preflight fail-fast en show()).
 const READY_TIMEOUT_MS = 45000;
 
 export function create(ctx, container) {
   let iframe = null;        // iframe vivo (keep-alive en desktop)
+  let iframeOrigin = null;  // origen resuelto del iframe (targetOrigin estricto)
   let cloudKey = null;      // path de la nube que tiene cargada el iframe
   let ready = false;        // el iframe ya emitió su primer 'ready'
   let lastView = null;      // última vista reportada { position:[..3], target:[..3] }
@@ -34,8 +37,9 @@ export function create(ctx, container) {
 
   function post(msg) {
     if (iframe && iframe.contentWindow) {
-      // '*' como targetOrigin: mismo origen en producción (Pages) y en local
-      iframe.contentWindow.postMessage(Object.assign({ source: 'potree-ctrl' }, msg), '*');
+      // targetOrigin estricto (F2-L1): con el viewer en recorridos.dronemapping.mx
+      // el iframe de nube es cross-origin real hacia presentacion — nada de '*'.
+      iframe.contentWindow.postMessage(Object.assign({ source: 'potree-ctrl' }, msg), iframeOrigin || '*');
     }
   }
 
@@ -49,6 +53,9 @@ export function create(ctx, container) {
 
   function onMessage(e) {
     if (!iframe || e.source !== iframe.contentWindow) return;
+    // Cinturón sobre el check de e.source: el mensaje debe venir del origen
+    // exacto del iframe que creamos (cross-origin real desde F2).
+    if (iframeOrigin && e.origin !== iframeOrigin) return;
     const d = e.data;
     if (!d || d.source !== 'potree-state') return;
 
@@ -82,6 +89,7 @@ export function create(ctx, container) {
 
   function destroyIframe() {
     if (iframe) { iframe.remove(); iframe = null; }
+    iframeOrigin = null;
     cloudKey = null;
     ready = false;
     settle(false, new Error('[engine-potree] iframe destruido durante la carga'));
@@ -119,7 +127,9 @@ export function create(ctx, container) {
       // Fail-fast (P0): una nube inaccesible no debe costar 45 s de pantalla
       // negra — el metadata.json es pequeño y confirma que el path responde.
       try {
-        const r = await fetch(path, { cache: 'no-store' });
+        // toCloudUrl: el preflight lo hace el VIEWER (cross-origin al host de
+        // nubes si aplica; CORS * verificado en Pages).
+        const r = await fetch(toCloudUrl(path), { cache: 'no-store' });
         if (!r.ok) throw new Error(String(r.status));
       } catch {
         throw new Error('La nube de puntos no está disponible en este momento.');
@@ -131,12 +141,19 @@ export function create(ctx, container) {
       cloudKey = path;
 
       iframe = document.createElement('iframe');
-      // potree-scene.html vive en la raíz de recorridos/ (un nivel arriba de viewer/)
-      iframe.src = '../potree-scene.html'
+      // POTREE_SCENE_URL (site-config): relativo en dev/deploy viejo, absoluto a
+      // presentacion cuando el viewer corre en el subdominio. El ?cloud= viaja
+      // raíz-absoluto INTACTO — el iframe lo valida y resuelve en SU origen.
+      iframe.src = POTREE_SCENE_URL
         + '?cloud=' + encodeURIComponent(path)
         + '&controls=external'
         + '&budget=' + budgetFor(scene);
+      iframeOrigin = new URL(iframe.src, location.href).origin;
       iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;';
+      // Cross-origin (F2): sin delegación explícita, el policy del navegador
+      // bloquea sensores dentro del iframe (violation en consola en desktop,
+      // gestos de orientación muertos en móvil).
+      iframe.allow = 'accelerometer; gyroscope; magnetometer; fullscreen';
       iframe.title = scene.title || 'Nube de puntos';
       container.appendChild(iframe);
       log('iframe creado ·', iframe.src);

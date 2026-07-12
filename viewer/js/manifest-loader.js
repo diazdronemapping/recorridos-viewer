@@ -5,6 +5,8 @@
  * console.warn — el viewer nunca crashea por un manifest más nuevo.
  */
 
+import { toCloudUrl } from './site-config.js';
+
 const KNOWN_SCENE_TYPES = ['pano360', 'potree', 'ortho', 'splat'];
 const KNOWN_HOTSPOT_TYPES = {
   pano360: ['nav', 'info', 'link', 'polygon', 'download'],
@@ -39,7 +41,19 @@ export async function loadManifest(url) {
       }
       return true;
     });
-    scenes.push({ ...scene, hotspots });
+    const s = { ...scene, hotspots };
+    // Remap multi-origen TARGETED (F2-L1): los assets compartidos raíz-absolutos
+    // (/assets/…) que fetchea el VIEWER directamente (tiles/clip de Leaflet,
+    // src del splat) se vuelven absolutos al host de nubes cuando corremos en
+    // otro origen. cloud.path de potree NO se remapea: viaja al iframe intacto
+    // y ÉL lo resuelve contra su propio origen (whitelist CLOUD_PREFIX).
+    if (s.type === 'ortho') {
+      if (s.tiles) s.tiles = { ...s.tiles, url: toCloudUrl(s.tiles.url), clip: toCloudUrl(s.tiles.clip) };
+      if (Array.isArray(s.layers)) s.layers = s.layers.map(l => ({ ...l, src: toCloudUrl(l.src) }));
+    } else if (s.type === 'splat' && typeof s.src === 'string') {
+      s.src = toCloudUrl(s.src);
+    }
+    scenes.push(s);
   }
   if (!scenes.length) throw new Error('manifest sin escenas soportadas');
 

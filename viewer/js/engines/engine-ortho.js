@@ -176,6 +176,11 @@ export function create(ctx, container) {
         noWrap: true,
         errorTileUrl: BLANK_TILE, // huecos del borde → transparente, sin spam visual
         attribution: 'Ortomosaico © Drone Mapping MX',
+        // F2-L1: BoundaryCanvas dibuja los tiles en un <canvas>; con tiles
+        // cross-origin (viewer en recorridos., tiles en presentacion.) el canvas
+        // se TAINTEA y el recorte muere. crossOrigin + CORS * de Pages lo evita;
+        // inofensivo en same-origin.
+        crossOrigin: true,
       };
       if (clipGeo) {
         try { opts.bounds = L.geoJSON(clipGeo).getBounds().pad(0.05); } catch (_) {}
