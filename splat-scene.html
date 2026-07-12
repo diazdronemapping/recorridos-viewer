@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Vista realista 3D · Drone Mapping</title>
+<!--
+  splat-scene.html — host aislado del motor Gaussian Splatting (F1.5 · L7).
+
+  Gemelo estructural de potree-scene.html: el viewer Recorridos lo embebe en
+  un iframe y lo orquesta por postMessage. A diferencia del gemelo potree
+  (que vive en presentacion junto a las nubes), esta página se despliega EN
+  el repo recorridos-viewer → SIEMPRE same-origin con el viewer.
+
+  Motor: Spark v2.1.0 (World Labs, MIT) — ESM auto-contenido (workers inline,
+  WASM base64, sin COOP/COEP). three r180 vendorizado APARTE del r184 del
+  viewer: Spark externaliza `three` Y `three/addons/` (por eso el importmap
+  mapea ambos) y sus ejemplos tocan internals de r180 — aislar versiones en
+  el iframe es el punto del gemelo.
+
+  Protocolo postMessage v2 (clon del de potree · docs/protocolo-potree.md):
+    IFRAME → PADRE  source 'splat-state' · ready / view / interact / error
+    PADRE → IFRAME  source 'splat-ctrl'  · setView / getView
+
+  Parámetros:
+    ?src=<url>            WHITELIST: same-origin · blob: · host de nubes
+                          /assets/_splat/clouds/ (raíz-absoluto o absoluto)
+    ?format=sog|sogs|ply|spz|splat|ksplat
+                          explícito cuando la URL no trae extensión (blob:
+                          del preview del Studio — Spark infiere por extensión)
+    ?maxSh=<0-3>          armónicos esféricos máximos (calidad/VRAM)
+    ?background=<rrggbb>  color de fondo (default 0E0E0E)
+    ?flip=0               desactiva el volteo 180° eje X (los .sog/.ply 3DGS
+                          vienen Y-abajo; three es Y-arriba → default volteado)
+    ?pos=x,y,z&tgt=x,y,z  vista inicial standalone (QA)
+    ?controls=external    señala embed (el padre orquesta; chrome mínimo)
+    ?cloudhost=<origin>   override QA del host de nubes (como en el viewer)
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #0E0E0E; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  .overlay {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: #0E0E0E; color: #B8B8B8; text-align: center;
+    font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px;
+    z-index: 10; padding: 24px;
+  }
+  .overlay[hidden] { display: none; }
+  .overlay__box { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 420px; }
+  .spinner {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid #333; border-top-color: #7BC142;
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.5s; } }
+  .overlay__title { color: #FFF; font-size: 16px; font-weight: 600; }
+  .overlay--error .overlay__title { color: #FCA5A5; }
+  .overlay small { color: #777; font-size: 12px; }
+
+  .hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(20,20,20,.8); border: 1px solid #333; border-radius: 999px;
+    color: #B8B8B8; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px;
+    padding: 6px 14px; z-index: 5; pointer-events: none;
+    opacity: 1; transition: opacity .6s;
+  }
+  .hint.is-off { opacity: 0; }
+  body.embedded-chrome .hint { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="loading" class="overlay">
+  <div class="overlay__box">
+    <div class="spinner"></div>
+    <div class="overlay__title">Cargando vista realista…</div>
+    <small>Modelo 3D fotorrealista — puede tardar unos segundos.</small>
+  </div>
+</div>
+
+<div id="error" class="overlay overlay--error" hidden>
+  <div class="overlay__box">
+    <div class="overlay__title">La vista realista no está disponible</div>
+    <p id="error-msg">No se pudo cargar el modelo 3D.</p>
+  </div>
+</div>
+
+<div id="hint" class="hint">Arrastra para orbitar · rueda o pellizco para acercar</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./viewer/vendor/spark/three.module.min.js",
+    "three/addons/": "./viewer/vendor/spark/three-addons/",
+    "@sparkjsdev/spark": "./viewer/vendor/spark/spark.module.min.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SparkRenderer, SplatMesh, SplatFileType } from '@sparkjsdev/spark';
+
+const params = new URLSearchParams(location.search);
+if (params.get('controls') === 'external') document.body.classList.add('embedded-chrome');
+
+// ── Whitelist del src (clon del criterio ?cloud= de potree-scene) ──────────
+const CLOUD_HOST_PROD = 'https://presentacion.dronemapping.mx';
+const CLOUD_HOST = (() => {
+  const qp = params.get('cloudhost');
+  if (qp) return qp.replace(/\/+$/, '');
+  return location.hostname === 'recorridos.dronemapping.mx' ? CLOUD_HOST_PROD : '';
+})();
+const SPLAT_PREFIX = '/assets/_splat/clouds/';
+
+function resolveSrc(raw) {
+  if (!raw) return null;
+  if (raw.startsWith('blob:')) return raw;                 // preview del Studio (same-origin)
+  if (raw.startsWith(SPLAT_PREFIX)) return CLOUD_HOST + raw; // splat compartido en el host de nubes
+  let u;
+  try { u = new URL(raw, location.href); } catch { return null; }
+  if (u.origin === location.origin && !u.pathname.includes('..')) return u.href; // bundle del tour
+  if (u.origin === CLOUD_HOST_PROD && u.pathname.startsWith(SPLAT_PREFIX)) return u.href;
+  return null;   // fuera de whitelist
+}
+
+const FILE_TYPES = {
+  sog: SplatFileType.PCSOGSZIP, sogs: SplatFileType.PCSOGS,
+  ply: SplatFileType.PLY, spz: SplatFileType.SPZ,
+  splat: SplatFileType.SPLAT, ksplat: SplatFileType.KSPLAT,
+};
+
+function showError(msg) {
+  document.getElementById('loading').hidden = true;
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('error').hidden = false;
+  post({ action: 'error', message: msg });
+}
+
+// ── Protocolo postMessage v2 (clon de potree-scene) ────────────────────────
+const PARENT_ALLOWED = [location.origin,
+                        'https://recorridos.dronemapping.mx',
+                        'https://presentacion.dronemapping.mx'];
+function allowedOrigin(o) {
+  return PARENT_ALLOWED.indexOf(o) !== -1 ||
+         /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+}
+const PARENT_ORIGIN = (() => {
+  try {
+    if (window === window.parent) return null;   // standalone
+    const o = new URL(document.referrer).origin;
+    return allowedOrigin(o) ? o : null;
+  } catch { return null; }
+})();
+function post(msg) {
+  if (!PARENT_ORIGIN) return;
+  try { parent.postMessage(Object.assign({ source: 'splat-state' }, msg), PARENT_ORIGIN); }
+  catch { /* noop */ }
+}
+
+// ── Escena three + Spark ───────────────────────────────────────────────────
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const bg = (params.get('background') || '').replace(/^#/, '');
+scene.background = new THREE.Color(/^[0-9a-fA-F]{6}$/.test(bg) ? '#' + bg : '#0E0E0E');
+
+const camera = new THREE.PerspectiveCamera(
+  60, stage.clientWidth / Math.max(1, stage.clientHeight), 0.05, 5000);
+
+let maxSh = parseInt(params.get('maxSh'), 10);
+if (!Number.isFinite(maxSh) || maxSh < 0 || maxSh > 3) maxSh = 3;
+const spark = new SparkRenderer({ renderer, maxSh });
+scene.add(spark);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+window.addEventListener('resize', () => {
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  camera.aspect = stage.clientWidth / Math.max(1, stage.clientHeight);
+  camera.updateProjectionMatrix();
+});
+
+// ── Vista (getView/setView + emisión espontánea, contrato del clon) ────────
+let externalViewSet = false;
+function currentView() {
+  return {
+    position: [camera.position.x, camera.position.y, camera.position.z],
+    target:   [controls.target.x, controls.target.y, controls.target.z],
+  };
+}
+function applyExternalView(pos, tgt) {
+  if (!Array.isArray(pos) || pos.length !== 3 || !Array.isArray(tgt) || tgt.length !== 3) return;
+  externalViewSet = true;
+  camera.position.set(pos[0], pos[1], pos[2]);
+  controls.target.set(tgt[0], tgt[1], tgt[2]);
+  controls.update();
+}
+
+let readySent = false;
+let lastViewMsgAt = 0, lastViewSig = '';
+controls.addEventListener('change', () => {
+  if (!readySent) return;
+  const now = performance.now();
+  if (now - lastViewMsgAt < 500) return;
+  const cv = currentView();
+  const sig = cv.position.map(n => n.toFixed(2)).join(',') + '|' +
+              cv.target.map(n => n.toFixed(2)).join(',');
+  if (sig === lastViewSig) return;
+  lastViewSig = sig;
+  lastViewMsgAt = now;
+  post({ action: 'view', position: cv.position, target: cv.target });
+});
+
+let lastInteractAt = 0;
+function postInteract() {
+  const now = performance.now();
+  if (now - lastInteractAt < 400) return;
+  lastInteractAt = now;
+  post({ action: 'interact' });
+  const hint = document.getElementById('hint');
+  if (hint) hint.classList.add('is-off');
+}
+window.addEventListener('pointerdown', postInteract, true);
+window.addEventListener('wheel', postInteract, { capture: true, passive: true });
+
+window.addEventListener('message', (e) => {
+  if (!allowedOrigin(e.origin)) return;
+  const d = e.data;
+  if (!d || d.source !== 'splat-ctrl') return;
+  switch (d.action) {
+    case 'setView': applyExternalView(d.position, d.target); break;
+    case 'getView': {
+      const cv = currentView();
+      post({ action: 'view', position: cv.position, target: cv.target });
+      break;
+    }
+  }
+});
+
+// ── Carga del splat ────────────────────────────────────────────────────────
+const rawSrc = params.get('src');
+const src = resolveSrc(rawSrc);
+let mesh = null;
+
+function parseXyz(s) {
+  if (!s) return null;
+  const a = s.split(',').map(Number);
+  return (a.length === 3 && a.every(Number.isFinite)) ? a : null;
+}
+
+/** Encuadre por defecto (standalone sin pos/tgt y sin setView del padre). */
+function frameDefault() {
+  let box = null;
+  try {
+    // getBoundingBox() da bounds en coords LOCALES del mesh → llevar a mundo
+    // (el volteo 180° X del quaternion cambia el signo de Y/Z).
+    mesh.updateMatrixWorld(true);
+    const b = mesh.getBoundingBox().clone().applyMatrix4(mesh.matrixWorld);
+    if (!b.isEmpty() && Number.isFinite(b.min.x) && Number.isFinite(b.max.x)) box = b;
+  } catch { /* sin bounds usables */ }
+  if (box) {
+    const c = box.getCenter(new THREE.Vector3());
+    const d = Math.max(box.getSize(new THREE.Vector3()).length() * 0.55, 2);
+    camera.position.set(c.x + d * 0.6, c.y + d * 0.45, c.z + d * 0.6);
+    controls.target.copy(c);
+  } else {
+    camera.position.set(6, 4, 6);
+    controls.target.set(0, 0, 0);
+  }
+  controls.update();
+}
+
+if (!src) {
+  showError(rawSrc ? 'El modelo 3D está fuera de los orígenes permitidos.'
+                   : 'Falta el parámetro ?src= del modelo 3D.');
+} else {
+  const fmt = FILE_TYPES[(params.get('format') || '').toLowerCase()] || undefined;
+  try {
+    mesh = new SplatMesh(fmt ? { url: src, fileType: fmt } : { url: src });
+    // Los datasets 3DGS (PLY/SOG de PostShot/gsplat) vienen Y-abajo (OpenCV);
+    // three es Y-arriba → volteo 180° sobre X por default (?flip=0 lo quita).
+    if (params.get('flip') !== '0') mesh.quaternion.set(1, 0, 0, 0);
+    scene.add(mesh);
+
+    mesh.initialized.then(() => {
+      const qpPos = parseXyz(params.get('pos'));
+      const qpTgt = parseXyz(params.get('tgt'));
+      if (qpPos && qpTgt) applyExternalView(qpPos, qpTgt);
+      else if (!externalViewSet) frameDefault();
+
+      document.getElementById('loading').hidden = true;
+      readySent = true;
+      post({ action: 'ready' });
+      // handle de solo-lectura para QA/debug (patrón __potreeViewer)
+      window.__splatScene = { camera, controls, mesh, renderer, ready: true };
+    }).catch((err) => {
+      console.error('[splat-scene] carga falló:', err);
+      showError('No se pudo cargar el modelo 3D (' + (err && err.message ? err.message : 'error') + ').');
+    });
+  } catch (err) {
+    console.error('[splat-scene] init falló:', err);
+    showError('El motor 3D no pudo iniciar en este dispositivo.');
+  }
+}
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

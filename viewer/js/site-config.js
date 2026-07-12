@@ -49,3 +49,10 @@ export const POTREE_SCENE_URL = (() => {
   // Deploy viejo y dev local: potree-scene.html es hermano de viewer/.
   return new URL('../../potree-scene.html', import.meta.url).href;
 })();
+
+/** URL del iframe gemelo splat (F1.5-L7). A diferencia de potree-scene (que
+ *  vive en presentacion junto a las nubes), splat-scene.html se despliega EN
+ *  este repo → siempre hermano de viewer/, same-origin en los 4 contextos.
+ *  Los .sog compartidos de /assets/_splat/clouds/ sí cruzan a presentacion —
+ *  eso lo resuelve la propia página con su CLOUD_HOST (fetch CORS *). */
+export const SPLAT_SCENE_URL = new URL('../../splat-scene.html', import.meta.url).href;

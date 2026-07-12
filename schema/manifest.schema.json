@@ -431,7 +431,28 @@
         "type": { "const": "splat" },
         "src": {
           "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/assetPath" }],
-          "description": "null = motor diferido (placeholder). Fase 1.5: .sog/.spz/.splat comprimido de PostShot."
+          "description": "null = motor diferido (placeholder). assetPath relativo al tour (assets/splat/*.sog) o raíz-absoluto /assets/_splat/clouds/ (host de nubes). La alineación RTK NO va aquí: se hornea en el asset con splat-transform -r/-s/-t."
+        },
+        "format": {
+          "enum": ["sog", "sogs", "ply", "spz", "splat", "ksplat"],
+          "description": "Explícito cuando la URL no trae extensión (blob: del preview del Studio — Spark infiere formato por extensión). Default: inferido de la extensión del src."
+        },
+        "initialView": {
+          "type": "object",
+          "properties": {
+            "position": { "$ref": "#/$defs/xyz" },
+            "target": { "$ref": "#/$defs/xyz" }
+          }
+        },
+        "render": {
+          "type": "object",
+          "properties": {
+            "maxSh": {
+              "type": "integer", "minimum": 0, "maximum": 3, "default": 3,
+              "description": "Armónicos esféricos máximos (calidad vs VRAM/FPS móvil)."
+            },
+            "background": { "$ref": "#/$defs/cssColor" }
+          }
         }
       },
       "required": ["src"]

@@ -61,6 +61,7 @@ export class TourController {
     // 'interact' → engine-potree) — el pointerdown de allá no llega a este
     // document, por eso cruza como evento del bus
     this.on('potree-interact', () => this.stopAutopilot());
+    this.on('splat-interact', () => this.stopAutopilot());   // gemelo splat (F1.5-L7)
   }
 
   /* ---------- eventos internos (chrome / hud) ---------- */
