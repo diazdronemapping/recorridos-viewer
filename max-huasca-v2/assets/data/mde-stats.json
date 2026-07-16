@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "source": "3_dsm_ortho/extras/dtm/Huasca_MAX_V2_dtm.tif",
+  "crs": "EPSG:32614",
+  "vertical_reference": {
+    "altitude_reference": "constShift",
+    "geoid_height_m": 0.0,
+    "interpretation": "alturas elipsoidales/constShift; sin conversión a elevación ortométrica",
+    "absolute_control": "amarre INEGI pendiente; no se publica una exactitud absoluta numérica"
+  },
+  "raster": {
+    "width": 3158,
+    "height": 2767,
+    "resolution_m": [
+      0.08787,
+      0.08787
+    ],
+    "bounds_utm": [
+      542998.60474,
+      2234574.89533,
+      543276.0982,
+      2234818.03162
+    ],
+    "bounds_wgs84": [
+      -98.588402854,
+      20.208198747,
+      -98.585740832,
+      20.210402027
+    ],
+    "nodata": -10000.0,
+    "valid_cells": 8602786,
+    "total_cells": 8738186,
+    "valid_percent": 98.450479
+  },
+  "elevation_m": {
+    "min": 2122.537598,
+    "max": 2159.888184,
+    "mean": 2138.889854,
+    "median": 2138.009766,
+    "stddev": 6.106803,
+    "percentiles": {
+      "p1": 2128.958496,
+      "p2": 2129.739258,
+      "p5": 2130.603516,
+      "p10": 2131.845215,
+      "p25": 2134.401611,
+      "p50": 2138.009766,
+      "p75": 2142.139648,
+      "p90": 2147.327393,
+      "p95": 2150.512451,
+      "p98": 2154.949463,
+      "p99": 2157.468506
+    }
+  },
+  "method": "All valid cells from the original float32 GeoTIFF; nodata excluded.",
+  "visualization": {
+    "width": 2048,
+    "height": 1794,
+    "stretch": {
+      "method": "p2-p98",
+      "min_m": 2129.739258,
+      "max_m": 2154.949463
+    },
+    "hillshade_display": {
+      "azimuth_deg": 315,
+      "altitude_deg": 45
+    },
+    "files": [
+      "mde-relief.png",
+      "mde-relief.webp"
+    ],
+    "palette": [
+      {
+        "position": 0.0,
+        "rgb": [
+          25,
+          73,
+          75
+        ]
+      },
+      {
+        "position": 0.2,
+        "rgb": [
+          54,
+          111,
+          82
+        ]
+      },
+      {
+        "position": 0.4,
+        "rgb": [
+          111,
+          145,
+          84
+        ]
+      },
+      {
+        "position": 0.6,
+        "rgb": [
+          180,
+          166,
+          101
+        ]
+      },
+      {
+        "position": 0.8,
+        "rgb": [
+          194,
+          133,
+          91
+        ]
+      },
+      {
+        "position": 1.0,
+        "rgb": [
+          235,
+          224,
+          195
+        ]
+      }
+    ]
+  },
+  "mesh": {
+    "file": "mde-mesh.json",
+    "step_m": 2.0,
+    "grid_columns": 139,
+    "grid_rows": 122,
+    "vertex_count": 16662,
+    "triangle_count": 32804,
+    "elevation_range_m": [
+      2123.021091,
+      2159.861536
+    ]
+  }
+}

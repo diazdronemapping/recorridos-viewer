@@ -1,0 +1,433 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-16T02:38:46Z",
+  "project": {
+    "id": "max-huasca-v2",
+    "name": "Max Huasca V2",
+    "pix4d_project": "Huasca_MAX_V2",
+    "pix4d_processed": "2026-07-07 16:23:15",
+    "pix4dmapper_version": "4.5.6",
+    "images": {
+      "total": 436,
+      "enabled": 436,
+      "calibrated": 379,
+      "calibrated_percentage": 86.0
+    },
+    "gsd_cm": 1.7574686934821
+  },
+  "coordinate_reference": {
+    "horizontal": "EPSG:32614 · WGS 84 / UTM zone 14N",
+    "vertical": "Pix4D constShift, geoidHeight=0; alturas sin conversión geoidal",
+    "site_calibration_enabled": false,
+    "pix4d_xyz_mean": [
+      543118.0,
+      2234688.0,
+      2173.0
+    ],
+    "potree_local_origin": [
+      542944.310303,
+      2234529.51059,
+      2086.380409
+    ]
+  },
+  "accuracy_and_scope": {
+    "absolute_control": "Amarre INEGI pendiente.",
+    "published_absolute_accuracy": null,
+    "note": "RTK fijo relativo no equivale por sí solo a amarre absoluto. No se inventa una cifra de exactitud absoluta.",
+    "boundary_note": "Los límites usan los cuatro vértices T-101 suministrados; las Z del trazo se interpolan del DTM real."
+  },
+  "source_assets": {
+    "cloud": {
+      "path": "2_densification/point_cloud/Huasca_MAX_V2_group1_densified_point_cloud.laz",
+      "bytes": 176560633,
+      "modified_local": "2026-07-07T18:26:11-06:00",
+      "sha256": "cca4154a6e1bfa039709a88c3922d8aaa8e65370aa1dadf30d18123c22163b0c"
+    },
+    "dtm": {
+      "path": "3_dsm_ortho/extras/dtm/Huasca_MAX_V2_dtm.tif",
+      "bytes": 11128786,
+      "modified_local": "2026-07-07T18:57:28-06:00",
+      "sha256": "26a4e9b04c825cacb460c87a06430a556ec18fc921363f067e624bf7d0bc3865"
+    },
+    "ortho": {
+      "path": "3_dsm_ortho/2_mosaic/Huasca_MAX_V2_transparent_mosaic_group1.tif",
+      "bytes": 509371274,
+      "modified_local": "2026-07-07T19:52:22-06:00",
+      "sha256": "52655525e0a880e370f532132711cc6865bf159a6cc43f87b52b221d309ec3e2"
+    },
+    "report": {
+      "path": "1_initial/report/report.xml",
+      "bytes": 17304,
+      "modified_local": "2026-07-07T16:23:15-06:00",
+      "sha256": "6281d5de3696abaaaaa15ae35e46c482a5c5a35b8287a818267643434f50907e"
+    },
+    "wkt": {
+      "path": "1_initial/params/Huasca_MAX_V2_wkt.prj",
+      "bytes": 598,
+      "modified_local": "2026-07-07T16:20:41-06:00",
+      "sha256": "bce445fdeb248bc627fcff9600745d8bf52cce598d8f819e8eb68e574247655b"
+    },
+    "offset": {
+      "path": "1_initial/params/Huasca_MAX_V2_offset.xyz",
+      "bytes": 31,
+      "modified_local": "2026-07-07T16:20:41-06:00",
+      "sha256": "c5f4ababda09b0fc38e3c4ce934a90e305a3a98fcf9f2c0022e6fbf354a88fbd"
+    },
+    "contours": {
+      "path": "3_dsm_ortho/extras/contours/Huasca_MAX_V2_elev50cm_res300cm_size100_DTM.dxf",
+      "bytes": 261925,
+      "modified_local": "2026-07-07T18:57:29-06:00",
+      "sha256": "751b835390a1ec0c84e18ccd072dcfc6c7e4a39a13b0f00a9d571349d3545f36"
+    }
+  },
+  "cloud": {
+    "point_count": 25131914,
+    "las_version": "1.2",
+    "point_format": 3,
+    "crs": "EPSG:32614",
+    "bounds_utm": [
+      542944.310303,
+      2234529.51059,
+      543340.814453,
+      2234919.738403
+    ],
+    "z_range_m": [
+      2086.380409,
+      2166.292376
+    ],
+    "bounds_wgs84": [
+      -98.588923645,
+      20.207787178,
+      -98.585118914,
+      20.211322291
+    ],
+    "las_scale": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "las_offset": [
+      543000.0,
+      2234000.0,
+      2000.0
+    ],
+    "potree_local_origin": [
+      542944.310303,
+      2234529.51059,
+      2086.380409
+    ],
+    "dimensions": [
+      "X",
+      "Y",
+      "Z",
+      "intensity",
+      "return_number",
+      "number_of_returns",
+      "scan_direction_flag",
+      "edge_of_flight_line",
+      "classification",
+      "synthetic",
+      "key_point",
+      "withheld",
+      "scan_angle_rank",
+      "user_data",
+      "point_source_id",
+      "gps_time",
+      "red",
+      "green",
+      "blue"
+    ],
+    "classification_histogram": {
+      "2": 5723021,
+      "3": 521814,
+      "5": 17311144,
+      "6": 917450,
+      "11": 658485
+    },
+    "rgb_range_16bit": {
+      "min": [
+        0,
+        0,
+        0
+      ],
+      "max": [
+        65280,
+        65280,
+        65280
+      ]
+    }
+  },
+  "boundary": {
+    "source": "Plano T-101 / cuadro de coordenadas",
+    "vertices": 4,
+    "area_declared_m2": 4015.88,
+    "area_calculated_m2": 4015.8336,
+    "area_difference_m2": -0.0464,
+    "perimeter_declared_m": 257.0,
+    "perimeter_calculated_m": 256.9994,
+    "perimeter_difference_m": -0.000627,
+    "dense_3d_samples": 260,
+    "drape_elevation_range_m": [
+      2133.0933,
+      2141.922
+    ],
+    "bounds_utm": [
+      543101.08,
+      2234640.64,
+      543166.41,
+      2234725.72
+    ],
+    "bounds_wgs84": [
+      -98.58742038,
+      20.208795304,
+      -98.586793,
+      20.209565577
+    ]
+  },
+  "contours": {
+    "source": "3_dsm_ortho/extras/contours/Huasca_MAX_V2_elev50cm_res300cm_size100_DTM.dxf",
+    "polylines": 39,
+    "vertices": 6278,
+    "elevation_range_m": [
+      2131.5,
+      2149.5
+    ],
+    "unique_levels": 37,
+    "observed_level_steps_m": [
+      0.5
+    ],
+    "interval_from_filename_m": 0.5,
+    "source_resolution_filename_token_cm": 300
+  },
+  "mde": {
+    "schema_version": 1,
+    "source": "3_dsm_ortho/extras/dtm/Huasca_MAX_V2_dtm.tif",
+    "crs": "EPSG:32614",
+    "vertical_reference": {
+      "altitude_reference": "constShift",
+      "geoid_height_m": 0.0,
+      "interpretation": "alturas elipsoidales/constShift; sin conversión a elevación ortométrica",
+      "absolute_control": "amarre INEGI pendiente; no se publica una exactitud absoluta numérica"
+    },
+    "raster": {
+      "width": 3158,
+      "height": 2767,
+      "resolution_m": [
+        0.08787,
+        0.08787
+      ],
+      "bounds_utm": [
+        542998.60474,
+        2234574.89533,
+        543276.0982,
+        2234818.03162
+      ],
+      "bounds_wgs84": [
+        -98.588402854,
+        20.208198747,
+        -98.585740832,
+        20.210402027
+      ],
+      "nodata": -10000.0,
+      "valid_cells": 8602786,
+      "total_cells": 8738186,
+      "valid_percent": 98.450479
+    },
+    "elevation_m": {
+      "min": 2122.537598,
+      "max": 2159.888184,
+      "mean": 2138.889854,
+      "median": 2138.009766,
+      "stddev": 6.106803,
+      "percentiles": {
+        "p1": 2128.958496,
+        "p2": 2129.739258,
+        "p5": 2130.603516,
+        "p10": 2131.845215,
+        "p25": 2134.401611,
+        "p50": 2138.009766,
+        "p75": 2142.139648,
+        "p90": 2147.327393,
+        "p95": 2150.512451,
+        "p98": 2154.949463,
+        "p99": 2157.468506
+      }
+    },
+    "method": "All valid cells from the original float32 GeoTIFF; nodata excluded.",
+    "visualization": {
+      "width": 2048,
+      "height": 1794,
+      "stretch": {
+        "method": "p2-p98",
+        "min_m": 2129.739258,
+        "max_m": 2154.949463
+      },
+      "hillshade_display": {
+        "azimuth_deg": 315,
+        "altitude_deg": 45
+      },
+      "files": [
+        "mde-relief.png",
+        "mde-relief.webp"
+      ],
+      "palette": [
+        {
+          "position": 0.0,
+          "rgb": [
+            25,
+            73,
+            75
+          ]
+        },
+        {
+          "position": 0.2,
+          "rgb": [
+            54,
+            111,
+            82
+          ]
+        },
+        {
+          "position": 0.4,
+          "rgb": [
+            111,
+            145,
+            84
+          ]
+        },
+        {
+          "position": 0.6,
+          "rgb": [
+            180,
+            166,
+            101
+          ]
+        },
+        {
+          "position": 0.8,
+          "rgb": [
+            194,
+            133,
+            91
+          ]
+        },
+        {
+          "position": 1.0,
+          "rgb": [
+            235,
+            224,
+            195
+          ]
+        }
+      ]
+    },
+    "mesh": {
+      "file": "mde-mesh.json",
+      "step_m": 2.0,
+      "grid_columns": 139,
+      "grid_rows": 122,
+      "vertex_count": 16662,
+      "triangle_count": 32804,
+      "elevation_range_m": [
+        2123.021091,
+        2159.861536
+      ]
+    }
+  },
+  "orthomosaic_preview": {
+    "source_width": 15798,
+    "source_height": 13839,
+    "source_resolution_m": [
+      0.01757,
+      0.01757
+    ],
+    "bounds_utm": [
+      542998.60474,
+      2234574.88039,
+      543276.1756,
+      2234818.03162
+    ],
+    "pixel_origin": "upper-left",
+    "file": "ortomosaico.webp",
+    "width": 3072,
+    "height": 2691,
+    "preview_resolution_m": [
+      0.090355,
+      0.090357
+    ],
+    "format": "WebP RGBA",
+    "encoding": {
+      "quality": 84,
+      "alpha_preserved": true
+    },
+    "bounds_wgs84": [
+      -98.588402854,
+      20.20819861,
+      -98.585740091,
+      20.210402027
+    ]
+  },
+  "qa": {
+    "crs_consistent_epsg32614": true,
+    "boundary_valid_polygon": true,
+    "boundary_inside_dtm_bounds": true,
+    "boundary_area_matches_declared_within_0_1_m2": true,
+    "boundary_perimeter_matches_declared_within_0_01_m": true,
+    "contour_interval_is_0_5_m": true,
+    "contour_vertices_have_real_z": true,
+    "mde_has_valid_cells": true,
+    "rgba_ortho_alpha_preserved": true
+  },
+  "artifacts": [
+    {
+      "path": "contours-3d.json",
+      "bytes": 174746,
+      "sha256": "7e2fc2cbb4bb7a7fd1c037ce9b0b3df261de1fa47f1a74afbbdbc0cde9d02ff4"
+    },
+    {
+      "path": "contours-wgs84.geojson",
+      "bytes": 188598,
+      "sha256": "77c7ec94006202dceefb89ef8da398d983395b0d7ec0efafafac9ea3b3107f89"
+    },
+    {
+      "path": "mde-mesh.json",
+      "bytes": 1073548,
+      "sha256": "d58cc65591fba1c98fca672c517ce82876c580f0269b5a68fe03a3b5c2b0069c"
+    },
+    {
+      "path": "mde-relief.png",
+      "bytes": 1724640,
+      "sha256": "3ba197d4bc83dedb78766bb792860028a5d12c3bd6a8e8f048a672f6099e6456"
+    },
+    {
+      "path": "mde-relief.webp",
+      "bytes": 1200726,
+      "sha256": "6d405240168ea7bead14f293eb4744cd5b64d97f6d666c7a2397b8995257ae07"
+    },
+    {
+      "path": "mde-stats.json",
+      "bytes": 2644,
+      "sha256": "67fdbde070b070c46f8c4626da7c85795bd564dcd11b525d0b2128ccb69378c6"
+    },
+    {
+      "path": "ortomosaico.webp",
+      "bytes": 2300956,
+      "sha256": "7d1de39d3d5496922464ad77552f7667f325adb4508969015cdad843bb9c0e33"
+    },
+    {
+      "path": "predio-3d.json",
+      "bytes": 18044,
+      "sha256": "30b34a0151975987cd227250528e8003b9e78806671cd940715790a5c576078e"
+    },
+    {
+      "path": "predio-utm.geojson",
+      "bytes": 1164,
+      "sha256": "2baea3042879281f6dd339fe23e800dfc3ef5dd22690506ed9fe2092b0c3f013"
+    },
+    {
+      "path": "predio-wgs84.geojson",
+      "bytes": 1107,
+      "sha256": "1b259ae11a982245e6d9a5a2f7a2d025e5bcdee09b7c5f9aa3d7fd541f2eabcd"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "name": "predio_max_huasca_t101_wgs84",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Predio Max Huasca · T-101",
+        "source": "Plano T-101 / cuadro de coordenadas",
+        "source_crs": "EPSG:32614",
+        "vertices": 4,
+        "area_declared_m2": 4015.88,
+        "area_calculated_m2": 4015.8336,
+        "area_ha": 0.401583,
+        "perimeter_declared_m": 257.0,
+        "perimeter_calculated_m": 256.9994,
+        "absolute_control": "amarre INEGI pendiente"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -98.586794818,
+              20.208875274
+            ],
+            [
+              -98.586926724,
+              20.209564421
+            ],
+            [
+              -98.587418886,
+              20.209363888
+            ],
+            [
+              -98.587367924,
+              20.20879665
+            ],
+            [
+              -98.586794818,
+              20.208875274
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

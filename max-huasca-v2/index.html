@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Max · Huasca V2 · Visor topográfico 3D</title>
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+
+  <script>
+    /* El octree real pesa 477,506,366 bytes. En web se sirve desde bloques
+       mediante un Service Worker limitado exclusivamente a este visor. */
+    window.__maxCloudReady = (async function () {
+      if (!('serviceWorker' in navigator)) {
+        throw new Error('Este navegador no admite el visor de nube de puntos.');
+      }
+
+      const expectedSuffix = '/max-huasca-v2/sw-octree.js';
+      const isExpectedController = () => (
+        navigator.serviceWorker.controller &&
+        new URL(navigator.serviceWorker.controller.scriptURL).pathname === expectedSuffix
+      );
+
+      const registration = await navigator.serviceWorker.register('./sw-octree.js', {
+        scope: './',
+        updateViaCache: 'none'
+      });
+      await registration.update();
+      await navigator.serviceWorker.ready;
+
+      if (!isExpectedController()) {
+        await new Promise((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+            resolve();
+          };
+          const onChange = () => {
+            if (isExpectedController()) finish();
+          };
+          navigator.serviceWorker.addEventListener('controllerchange', onChange);
+          setTimeout(finish, 5000);
+        });
+      }
+
+      if (!isExpectedController()) {
+        const reloadKey = 'dmMaxHuascaSwReloadV1';
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, '1');
+          location.reload();
+          await new Promise(() => {});
+        }
+        throw new Error('El módulo de datos 3D no tomó control de esta página.');
+      }
+    })();
+  </script>
+
+  <!-- Potree CSS -->
+  <link rel="stylesheet" type="text/css" href="assets/potree/build/potree/potree.css" />
+  <link rel="stylesheet" type="text/css" href="assets/vendor/leaflet/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --ink: #0b0f0c;
+      --panel: rgba(11, 15, 12, 0.82);
+      --panel-strong: rgba(11, 15, 12, 0.94);
+      --lime: #7BC142;
+      --lime-hi: #A5D570;
+      --blue: #5AADE0;
+      --boundary: #FF453A;
+      --warning: #F59E0B;
+      --font-display: 'Outfit', 'Segoe UI', sans-serif;
+      --font-body: 'Work Sans', 'Segoe UI', sans-serif;
+      --font-tech: 'Space Grotesk', 'JetBrains Mono', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: radial-gradient(circle at 62% 35%, #162019 0, #0b0f0c 44%, #050706 100%);
+      font-family: var(--font-body);
+      overflow: hidden;
+      /* En móvil: el gesto táctil debe ir a los controles de Potree (rotar/zoom/pan),
+         NO al scroll de la página ni del deck que embebe este iframe. */
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    #potree_render_area {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0; left: 0;
+      touch-action: none;
+    }
+    /* El canvas que crea Potree dentro del render area también cede el gesto */
+    #potree_render_area canvas { touch-action: none; display: block; }
+    /* Hide sidebar completely — clean iframe embed */
+    #sidebar_root,
+    #potree_sidebar_toggle,
+    #potree_map_toggle,
+    .potree_sidebar_brand { display: none !important; }
+
+    /* Modo público para cotizaciones: conserva la demostración técnica y
+       elimina cualquier puerta visual hacia ubicación o coordenadas. */
+    body.sample-mode #measure-toolbar button[data-tool="point"],
+    body.sample-mode #view-mode,
+    body.sample-mode #map2d { display: none !important; }
+
+    /* Minimal overlay label */
+    #overlay-label {
+      position: absolute;
+      bottom: 14px; left: 54px;
+      font-family: var(--font-tech);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(123, 193, 66, 0.75);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Ficha técnica: un panel de instrumento, no una tarjeta promocional. */
+    #project-info-btn {
+      position: absolute; left: 12px; bottom: 10px; z-index: 52;
+      width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+      border: 1px solid rgba(165,213,112,.52); color: var(--lime-hi);
+      background: var(--panel); backdrop-filter: blur(12px);
+      font: 600 15px/1 var(--font-display); box-shadow: 0 8px 26px rgba(0,0,0,.34);
+    }
+    #project-info-btn:hover, #project-info-btn[aria-expanded="true"] {
+      color: #0b0f0c; background: var(--lime-hi); border-color: var(--lime-hi);
+    }
+    #project-info {
+      position: absolute; left: 12px; bottom: 52px; z-index: 51;
+      width: min(352px, calc(100vw - 24px)); padding: 18px 18px 16px;
+      background: linear-gradient(145deg, rgba(19,27,21,.97), rgba(7,10,8,.95));
+      border: 1px solid rgba(165,213,112,.24); border-radius: 14px;
+      color: #f4f7f2; box-shadow: 0 24px 56px rgba(0,0,0,.5);
+      backdrop-filter: blur(16px) saturate(125%);
+    }
+    #project-info[hidden] { display: none; }
+    #project-info .close {
+      position: absolute; top: 9px; right: 10px; width: 28px; height: 28px;
+      color: rgba(255,255,255,.62); background: transparent; border: 0;
+      font: 400 22px/1 var(--font-body); cursor: pointer;
+    }
+    #project-info .eyebrow {
+      display: block; color: var(--lime-hi); font: 500 10px/1.2 var(--font-tech);
+      letter-spacing: .14em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    #project-info h1 {
+      font: 600 25px/1.05 var(--font-display); letter-spacing: -.025em; margin: 0 30px 14px 0;
+    }
+    #project-info dl { display: grid; gap: 6px; }
+    #project-info dl div {
+      display: flex; justify-content: space-between; gap: 14px; padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,.07); font-size: 11.5px;
+    }
+    #project-info dt { color: rgba(255,255,255,.5); }
+    #project-info dd { color: #fff; text-align: right; font-family: var(--font-tech); }
+    #project-info .precision-note {
+      margin-top: 13px; padding: 10px 11px; border-left: 3px solid var(--warning);
+      background: rgba(245,158,11,.09); color: rgba(255,255,255,.76);
+      font-size: 11px; line-height: 1.45;
+    }
+    #project-info .source-note { margin-top: 10px; color: rgba(255,255,255,.38); font-size: 9.5px; line-height: 1.45; }
+
+    #mde-legend {
+      position: absolute; right: 12px; bottom: 12px; z-index: 30;
+      display: none; width: 270px; padding: 10px 12px 11px; border-radius: 10px;
+      color: #fff; background: rgba(11,15,12,.58); border: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(14px); font-family: var(--font-tech);
+    }
+    body.terrain-view #mde-legend { display: block; }
+    #mde-legend .title, #mde-legend .range { display: flex; justify-content: space-between; gap: 12px; }
+    #mde-legend .title { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.7); }
+    #mde-legend .unit { color: var(--lime-hi); letter-spacing: 0; text-transform: none; }
+    #mde-legend .bar {
+      height: 12px; margin: 7px 0 4px; border-radius: 3px;
+      background: linear-gradient(90deg,#2b3f73,#3a78a8,#4fa98e,#98c76b,#e5d86a,#db824c,#9c3f3b);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+    }
+    #mde-legend .range { color: rgba(255,255,255,.82); font-size: 10px; }
+    body.terrain-view #color-toggle,
+    body.terrain-view #density-control,
+    body.terrain-view #elevation-legend,
+    body.terrain-view #class-legend { display: none !important; }
+    body.terrain-view #overlay-label { color: rgba(165,213,112,.9); }
+
+    /* Loading indicator */
+    #loading-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #0F0F0F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 20;
+      transition: opacity 0.6s ease;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    #loading-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(123,193,66,0.15);
+      border-top-color: rgba(123,193,66,0.8);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-text {
+      font-family: var(--font-tech);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* Mini-toolbar de medición · botones flotantes */
+    #measure-toolbar {
+      position: absolute;
+      top: 12px; left: 12px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      z-index: 30;
+      max-width: calc(100% - 24px);
+    }
+    #measure-toolbar button {
+      font-family: var(--font-body);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.85);
+      background: rgba(15,15,15,0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(123,193,66,0.35);
+      border-radius: 999px;
+      padding: 6px 11px;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.18s;
+    }
+    #measure-toolbar button:hover {
+      background: rgba(123,193,66,0.18);
+      border-color: rgba(123,193,66,0.7);
+    }
+    #measure-toolbar button.active {
+      background: rgba(123,193,66,0.32);
+      border-color: rgba(123,193,66,0.85);
+      color: #fff;
+    }
+    #measure-toolbar button.clear {
+      border-color: rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.55);
+    }
+    #measure-toolbar button.clear:hover {
+      background: rgba(255,80,80,0.15);
+      border-color: rgba(255,120,120,0.5);
+      color: #fff;
+    }
+    #measure-toolbar button { white-space: nowrap; }
+    #measure-toolbar .ti { margin-right: 5px; }       /* glifo */
+    #measure-toolbar .tl { /* etiqueta · se oculta en móvil */ }
+
+    /* Selector de color (clasificación / elevación) */
+    #color-toggle {
+      position: absolute;
+      top: 12px; right: 12px;
+      display: flex;
+      gap: 4px;
+      z-index: 30;
+      background: rgba(15,15,15,0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px;
+      padding: 3px;
+    }
+    #color-toggle button {
+      font-family: var(--font-tech);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      background: transparent;
+      border: 0;
+      border-radius: 999px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+    #color-toggle button.active {
+      background: rgba(123,193,66,0.35);
+      color: #fff;
+    }
+
+    /* Control de densidad de puntos · point budget */
+    #density-control {
+      position: absolute;
+      top: 56px; right: 12px;
+      z-index: 30;
+      background: rgba(15,15,15,0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 230px;
+    }
+    #density-control label {
+      font-family: 'Space Grotesk', monospace, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+    }
+    #density-control .row { display: flex; align-items: center; gap: 8px; }
+    #density-control input[type=range] {
+      flex: 1;
+      accent-color: #7BC142;
+      height: 4px;
+      cursor: pointer;
+    }
+    #density-control .value {
+      font-family: var(--font-tech);
+      font-size: 11px;
+      color: rgba(255,255,255,0.88);
+      min-width: 56px;
+      text-align: right;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Capas / filtro de clasificación */
+    #layers { position: absolute; top: 118px; right: 12px; z-index: 31; }
+    #layers-btn {
+      font-family: 'Space Grotesk', monospace, sans-serif; font-size: 11px;
+      letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.85);
+      background: rgba(15,15,15,0.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(123,193,66,0.35); border-radius: 999px; padding: 6px 12px;
+      cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; margin-left: auto;
+    }
+    #layers-btn .ti { font-size: 13px; }
+    #layers-btn.open { background: rgba(123,193,66,0.28); border-color: rgba(123,193,66,0.7); color: #fff; }
+    #layers-panel {
+      position: absolute; top: 40px; right: 0; width: 250px; max-width: calc(100vw - 24px);
+      background: rgba(15,15,15,0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px;
+      display: flex; flex-direction: column; gap: 13px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    #layers-panel[hidden] { display: none; }
+    #layers .lp-sec { display: flex; flex-direction: column; gap: 8px; }
+    #layers .lp-lbl {
+      font-family: 'Space Grotesk', monospace; font-size: 9.5px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(255,255,255,0.5);
+    }
+    #layers .lp-chips, #layers .lp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    #layers .lp-chip, #layers .lp-act {
+      font-family: 'Space Grotesk', monospace, sans-serif; font-size: 11px; letter-spacing: 0.03em;
+      color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(123,193,66,0.30); border-radius: 999px; padding: 6px 11px;
+      cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, opacity .15s;
+    }
+    #layers .lp-chip[data-grp].on { border-color: rgba(123,193,66,0.6); color: #fff; background: rgba(123,193,66,0.14); }
+    #layers .lp-chip[data-grp]:not(.on) { opacity: 0.5; text-decoration: line-through; }
+    #layers .lp-chip[data-layer] { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.8); }
+    #layers .lp-chip[data-layer].active { border-color: rgba(123,193,66,0.7); color: #fff; background: rgba(123,193,66,0.2); }
+    #layers .lp-act { border-color: rgba(123,193,66,0.5); color: #cde8a8; }
+    #layers .lp-act.ghost { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.6); }
+
+    /* Selector de vista: Puntos / Realista / Mapa */
+    #view-mode {
+      position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 45;
+      display: flex; gap: 4px; background: rgba(15,15,15,0.82);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; padding: 4px;
+    }
+    #view-mode button {
+      font-family: 'Space Grotesk', monospace, sans-serif; font-size: 11px; letter-spacing: 0.07em;
+      text-transform: uppercase; color: rgba(255,255,255,0.6); background: transparent; border: 0;
+      border-radius: 999px; padding: 7px 17px; cursor: pointer; transition: background .18s, color .18s;
+    }
+    #view-mode button.active { background: rgba(123,193,66,0.38); color: #fff; }
+    /* Vistas alternas (mesh / mapa) ocupan toda la pantalla; el selector queda encima */
+    #realista, #map2d { position: absolute; inset: 0; z-index: 38; background: #0F0F0F; }
+    #realista[hidden], #map2d[hidden] { display: none; }
+    #realista model-viewer { width: 100%; height: 100%; background-color: #0F0F0F; }
+    /* En vista alterna se ocultan los controles de Potree (el selector NO) */
+    body.alt-view #potree_render_area { visibility: hidden; pointer-events: none; }
+    body.alt-view #measure-toolbar, body.alt-view #color-toggle, body.alt-view #density-control,
+    body.alt-view #layers, body.alt-view #elevation-legend, body.alt-view #class-legend, body.alt-view #measure-stack,
+    body.alt-view #loading-overlay { display: none !important; }
+    /* el overlay-label se mantiene como marca; en móvil el selector sube si choca */
+    @media (max-width: 600px) {
+      #view-mode { bottom: 10px; }
+    }
+
+    /* ── Vista Mapa · cromo GIS (leyenda · etiquetas de cota · deslinde) ── */
+    .contour-label {
+      color: #A7E84F; font: 600 10px/1 'Space Grotesk', monospace, sans-serif;
+      text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000;
+      background: none; border: 0; white-space: nowrap; pointer-events: none;
+    }
+    .predio-label {
+      color: #FF3B30; font: 700 11px/1 'Space Grotesk', sans-serif;
+      background: rgba(255,255,255,0.95); padding: 3px 9px; border-radius: 7px;
+      border: 1.5px solid #FF3B30;
+      white-space: nowrap; box-shadow: 0 1px 5px rgba(0,0,0,0.45); pointer-events: none;
+    }
+    .map-legend {
+      background: rgba(15,15,15,0.86); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      color: #e8e8e8; font: 11px/1.45 'Space Grotesk', sans-serif; padding: 11px 13px;
+      border: 1px solid rgba(255,255,255,0.14); border-radius: 11px; max-width: 236px;
+    }
+    .map-legend h4 {
+      margin: 0 0 7px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #A7E84F;
+    }
+    .map-legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    .map-legend .sw { width: 16px; flex: 0 0 auto; }
+    .map-legend .sw.line { height: 0; border-top: 3px solid; }
+    .map-legend .sw.box { height: 12px; border-radius: 2px; }
+    .map-legend .ficha {
+      margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12);
+      color: #b3b3b3; font-size: 10px; line-height: 1.55;
+    }
+    .map-legend .ficha b { color: #cfcfcf; font-weight: 600; }
+    .leaflet-control-layers, .map-legend { box-shadow: 0 4px 18px rgba(0,0,0,0.4); }
+    .leaflet-control-layers-expanded { font: 12px 'Space Grotesk', sans-serif; padding: 8px 10px 8px 8px; }
+    .leaflet-bar a { color: #222; }
+    @media (max-width: 600px) {
+      .map-legend { max-width: 184px; margin-bottom: 50px !important; font-size: 9.5px; padding: 8px 9px; }
+      .map-legend .ficha { display: none; }
+      .map-legend h4::after { content: ' · ver ⓘ'; color: #9aa39c; font-weight: 500; }
+      .leaflet-control-layers-expanded { font-size: 11px; }
+      #map2d .leaflet-bottom.leaflet-left { bottom: 48px; }
+    }
+
+    /* Leyenda de elevación · horizontal · solo visible en modo 'elevation' */
+    #elevation-legend {
+      position: absolute;
+      bottom: 12px; right: 12px;
+      z-index: 30;
+      display: none;
+      flex-direction: column;
+      gap: 7px;
+      background: rgba(15,15,15,0.40);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 9px 12px 11px;
+      width: 280px;
+      font-family: 'Space Grotesk', monospace;
+    }
+    #elevation-legend.visible { display: flex; }
+    #elevation-legend .title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+    }
+    #elevation-legend .title .unit {
+      color: rgba(123,193,66,0.82);
+      letter-spacing: 0.06em;
+      text-transform: none;
+      font-size: 10px;
+    }
+    #elevation-legend .bar-wrap {
+      position: relative;
+      height: 14px;
+      border-radius: 3px;
+      /* Rampa SPECTRAL · ColorBrewer Spectral-9 (idéntica al default de Potree) */
+      background: linear-gradient(to right,
+        #5e4fa2 0%,
+        #3288bd 12.5%,
+        #66c2a5 25%,
+        #abdda4 37.5%,
+        #e6f598 50%,
+        #fee08b 62.5%,
+        #fdae61 75%,
+        #f46d43 87.5%,
+        #d53e4f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+    }
+    #elevation-legend .bar-wrap .tick {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      width: 1px;
+      background: rgba(255,255,255,0.55);
+    }
+    #elevation-legend .labels {
+      position: relative;
+      height: 14px;
+      font-size: 9.5px;
+      color: rgba(255,255,255,0.82);
+      letter-spacing: 0.02em;
+    }
+    #elevation-legend .labels span {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      line-height: 14px;
+    }
+    #elevation-legend .labels span.edge-left  { transform: translateX(0); }
+    #elevation-legend .labels span.edge-right { transform: translateX(-100%); }
+    #elevation-legend .labels b { color: rgba(255,255,255,0.96); font-weight: 600; }
+
+    /* Leyenda de clasificación · vertical · solo visible en modo 'classification' */
+    #class-legend {
+      position: absolute;
+      bottom: 12px; right: 12px;
+      z-index: 30;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(15,15,15,0.40);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 9px 12px 11px;
+      width: 218px;
+      font-family: 'Space Grotesk', monospace;
+    }
+    #class-legend.visible { display: flex; }
+    #class-legend .title {
+      font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+    }
+    #class-legend .cl-items { display: flex; flex-direction: column; gap: 6px; }
+    #class-legend .cl-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; color: rgba(255,255,255,0.88); line-height: 1;
+    }
+    #class-legend .cl-sw {
+      width: 13px; height: 13px; border-radius: 3px; flex: none;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+    }
+
+    /* Stack de cards de medición · bottom-left · una card por medición (apiladas) */
+    #measure-stack {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      z-index: 31;
+      display: flex;
+      flex-direction: column;       /* primera arriba · última (más nueva) abajo, junto al ancla */
+      gap: 8px;
+      max-height: calc(100% - 76px);
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    #measure-stack::-webkit-scrollbar { width: 5px; }
+    #measure-stack::-webkit-scrollbar-thumb { background: rgba(123,193,66,0.30); border-radius: 3px; }
+    .mi-card {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 256px;
+      background: rgba(15,15,15,0.40);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      border: 1px solid rgba(123,193,66,0.30);
+      border-radius: 10px;
+      padding: 11px 13px 12px;
+      font-family: 'Space Grotesk', monospace;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+      animation: mi-in 0.18s ease;
+    }
+    @keyframes mi-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .mi-card .mi-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .mi-card .mi-type {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(123,193,66,0.92);
+    }
+    .mi-card .mi-type .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #7BC142;
+      box-shadow: 0 0 8px rgba(123,193,66,0.8);
+      flex-shrink: 0;
+    }
+    .mi-card .mi-close {
+      background: transparent;
+      border: 0;
+      color: rgba(255,255,255,0.5);
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 5px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .mi-card .mi-close:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    /* Métrica primaria destacada */
+    .mi-card .mi-primary {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+    .mi-card .mi-primary .val {
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+    .mi-card .mi-primary .unit {
+      font-size: 12px;
+      color: rgba(123,193,66,0.85);
+      letter-spacing: 0.04em;
+    }
+    /* Filas label / valor */
+    .mi-card .mi-rows { display: flex; flex-direction: column; gap: 3px; }
+    .mi-card .mi-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11px;
+    }
+    .mi-card .mi-row .k {
+      color: rgba(255,255,255,0.52);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .mi-card .mi-row .v {
+      color: rgba(255,255,255,0.92);
+      text-align: right;
+      letter-spacing: 0.02em;
+    }
+    .mi-card .mi-row .v b { color: #fff; font-weight: 600; }
+    /* Lista de tramos · scrollable compacta */
+    .mi-card .mi-segs {
+      margin-top: 1px;
+      max-height: 96px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .mi-card .mi-segs .seg {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.62);
+    }
+    .mi-card .mi-segs .seg .v { color: rgba(255,255,255,0.85); }
+    .mi-card .mi-segs::-webkit-scrollbar { width: 5px; }
+    .mi-card .mi-segs::-webkit-scrollbar-thumb {
+      background: rgba(123,193,66,0.35); border-radius: 3px;
+    }
+    /* Ocultar el branding label mientras hay cards visibles (evita solape bottom-left) */
+    body.measure-open #overlay-label { opacity: 0; transition: opacity 0.2s; }
+
+    /* Modo controles externos (deck móvil): el padre renderiza los controles ARRIBA
+       del iframe → ocultamos los overlays in-viewer para no duplicar ni tapar el 3D. */
+    body.ctrl-external #measure-toolbar,
+    body.ctrl-external #color-toggle,
+    body.ctrl-external #density-control,
+    body.ctrl-external #elevation-legend,
+    body.ctrl-external #class-legend { display: none !important; }
+
+    /* ──────────────────────────────────────────────────────────────────
+       Móvil (≤600px) · reacomodo de overlays para que NO se enciman.
+       Cluster superior compacto: toolbar (solo íconos · 1 fila) arriba-izq +
+       densidad arriba-der · selector de color en 2ª fila. Cluster inferior:
+       leyenda full-width abajo · cards de medición elevadas sobre la leyenda
+       cuando el modo elevación está activo.
+       ────────────────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      /* Toolbar de medición · solo íconos · una sola fila · arriba-izquierda */
+      #measure-toolbar {
+        top: 10px; left: 10px; right: auto;
+        flex-wrap: nowrap;
+        gap: 5px;
+        max-width: calc(100% - 190px);   /* deja sitio a la densidad a la derecha */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      #measure-toolbar::-webkit-scrollbar { display: none; }
+      #measure-toolbar button { padding: 7px 10px; }
+      #measure-toolbar .ti { margin-right: 0; font-size: 13px; }
+      #measure-toolbar .tl { display: none; }          /* icon-only en móvil */
+
+      /* Densidad · arriba-derecha · compacta */
+      #density-control {
+        top: 10px; right: 10px; left: auto;
+        width: 165px;
+        padding: 7px 10px;
+      }
+      #density-control input[type=range] { min-width: 0; }
+      #density-control .value { min-width: 28px; font-size: 10px; }
+
+      /* Selector de color · 2ª fila · arriba-izquierda (no comparte fila con la toolbar) */
+      #color-toggle { top: 64px; right: auto; left: 10px; }
+
+      /* Leyenda de elevación · barra full-width abajo */
+      #elevation-legend {
+        left: 10px; right: 10px; bottom: 10px;
+        width: auto;
+        padding: 7px 12px 9px;
+      }
+      #elevation-legend .labels span:not(.edge-left):not(.edge-right):not(.mid) { display: none; }
+
+      /* Cards de medición · abajo-izq · se elevan sobre la leyenda en modo elevación */
+      #measure-stack {
+        left: 10px; right: auto; bottom: 12px;
+        max-height: calc(100% - 150px);
+      }
+      body.elevation-on #measure-stack { bottom: 94px; }  /* sobre la leyenda full-width (≈72px alto) */
+      .mi-card { width: min(220px, calc(100vw - 20px)); }
+      #project-info { left: 10px; bottom: 54px; width: calc(100vw - 20px); max-height: calc(100vh - 76px); overflow: auto; }
+      #project-info-btn { left: 10px; bottom: 10px; }
+      #overlay-label { left: 50px; right: 10px; bottom: 15px; font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #view-mode button { padding: 7px 11px; font-size: 9.5px; }
+      #mde-legend { left: 10px; right: 10px; bottom: 58px; width: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay">
+    <div id="loading-spinner"></div>
+    <div id="loading-text">Cargando nube de puntos…</div>
+  </div>
+
+  <!-- Potree render target -->
+  <div id="potree_render_area"></div>
+
+  <!-- Mini-toolbar de medición · habilita las herramientas reales de Potree -->
+  <div id="measure-toolbar">
+    <button data-tool="distance" title="Medir distancia"><span class="ti">↔</span><span class="tl">Distancia</span></button>
+    <button data-tool="area"     title="Medir área"><span class="ti">▱</span><span class="tl">Área</span></button>
+    <button data-tool="height"   title="Medir altura"><span class="ti">↕</span><span class="tl">Altura</span></button>
+    <button data-tool="point"    title="Marcar punto"><span class="ti">·</span><span class="tl">Punto</span></button>
+    <button data-tool="profile"  title="Perfil del terreno"><span class="ti">⌇</span><span class="tl">Perfil</span></button>
+    <button data-tool="volume"   title="Volumen · cubicación"><span class="ti">▦</span><span class="tl">Volumen</span></button>
+    <button data-tool="clear" class="clear" title="Borrar todo"><span class="ti">✕</span><span class="tl">Limpiar</span></button>
+  </div>
+
+  <!-- Selector de coloreado · 3 modos · RGB por default -->
+  <div id="color-toggle">
+    <button data-color="rgba" class="active">RGB</button>
+    <button data-color="classification">Clasif.</button>
+    <button data-color="elevation">Elevación</button>
+  </div>
+
+  <!-- Densidad de puntos · point budget slider -->
+  <div id="density-control">
+    <label>Densidad de puntos</label>
+    <div class="row">
+      <input type="range" id="density-slider" min="500000" max="8000000" step="500000" value="4000000" />
+      <span class="value" id="density-value">4 M</span>
+    </div>
+  </div>
+
+  <!-- Capas / filtro de clasificación · panel colapsable -->
+  <div id="layers">
+    <button id="layers-btn" title="Capas y filtro"><span class="ti">≣</span><span class="tl">Capas</span></button>
+    <div id="layers-panel" hidden>
+      <div class="lp-sec">
+        <span class="lp-lbl">Filtro de puntos · ver el terreno limpio</span>
+        <div class="lp-chips">
+          <button data-grp="veg"   class="lp-chip on">Vegetación</button>
+          <button data-grp="const" class="lp-chip on">Edificación</button>
+        </div>
+        <div class="lp-actions">
+          <button data-act="ground" class="lp-act">Solo terreno</button>
+          <button data-act="all" class="lp-act ghost">Mostrar todo</button>
+        </div>
+      </div>
+      <div class="lp-sec">
+        <span class="lp-lbl">Capas</span>
+        <div class="lp-chips">
+          <button data-layer="boundary" class="lp-chip active">Límite T-101</button>
+          <button data-layer="contours" class="lp-chip active">Curvas de nivel · 0.50 m</button>
+          <button data-layer="terrain" class="lp-chip">MDE · terreno 3D</button>
+        </div>
+      </div>
+      <div class="lp-sec">
+        <span class="lp-lbl">Encuadre</span>
+        <div class="lp-actions">
+          <button data-camera="property" class="lp-act">Enfocar predio</button>
+          <button data-camera="flight" class="lp-act ghost">Área procesada</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leyenda de elevación · solo visible cuando el coloreado activo es 'elevation' -->
+  <div id="elevation-legend" aria-hidden="true">
+    <div class="title">
+      <span>Elevación</span>
+      <span class="unit">m · referencia Pix4D*</span>
+    </div>
+    <div class="bar-wrap" role="img" aria-label="Rampa de elevación SPECTRAL">
+      <span class="tick" style="left:0%"></span>
+      <span class="tick" style="left:25%"></span>
+      <span class="tick" style="left:50%"></span>
+      <span class="tick" style="left:75%"></span>
+      <span class="tick" style="left:100%"></span>
+    </div>
+    <div class="labels">
+      <span class="edge-left" id="ele-t0" style="left:0%">— m</span>
+      <span id="ele-t1" style="left:25%">—</span>
+      <span class="mid" id="ele-t2" style="left:50%"><b>—</b></span>
+      <span id="ele-t3" style="left:75%">—</span>
+      <span class="edge-right" id="ele-t4" style="left:100%">— m</span>
+    </div>
+  </div>
+
+  <!-- Leyenda de clasificación · solo visible cuando el coloreado activo es 'classification' -->
+  <div id="class-legend" aria-hidden="true">
+    <div class="title"><span>Clasificación</span></div>
+    <div class="cl-items">
+      <div class="cl-row"><span class="cl-sw" style="background:#a87b4f"></span>Suelo</div>
+      <div class="cl-row"><span class="cl-sw" style="background:#e6732e"></span>Edificación</div>
+      <div class="cl-row"><span class="cl-sw" style="background:#216b30"></span>Vegetación alta · clase 5</div>
+      <div class="cl-row"><span class="cl-sw" style="background:#bde36b"></span>Vegetación baja · clase 3</div>
+      <div class="cl-row"><span class="cl-sw" style="background:#8a9690"></span>Camino</div>
+    </div>
+  </div>
+
+  <div id="mde-legend" aria-hidden="true">
+    <div class="title"><span>MDE · terreno Pix4D</span><span class="unit">m · referencia Pix4D*</span></div>
+    <div class="bar"></div>
+    <div class="range"><span id="mde-min">—</span><span id="mde-max">—</span></div>
+  </div>
+
+  <!-- Stack de cards de medición · bottom-left · una card por medición (se crean en JS) -->
+  <div id="measure-stack" aria-live="polite"></div>
+
+  <!-- Overlay branding -->
+  <div id="overlay-label">Max · Huasca V2 · 25,131,914 puntos · Drone Mapping</div>
+
+  <button id="project-info-btn" aria-expanded="false" aria-controls="project-info">i</button>
+  <aside id="project-info" hidden>
+    <button class="close" aria-label="Cerrar">×</button>
+    <span class="eyebrow">Levantamiento verificado</span>
+    <h1>Max · Huasca V2</h1>
+    <dl>
+      <div><dt>Nube</dt><dd>25,131,914 puntos</dd></div>
+      <div><dt>GSD medio</dt><dd>1.76 cm</dd></div>
+      <div><dt>Área procesada</dt><dd>6.5806 ha</dd></div>
+      <div><dt>Predio T-101</dt><dd>4,015.88 m² · 257.00 m</dd></div>
+      <div><dt>Sistema</dt><dd>WGS 84 / UTM 14N · EPSG:32614</dd></div>
+    </dl>
+    <p class="precision-note"><b>Referencia actual.</b> RTK fijo relativo; el amarre absoluto a INEGI IHID y la conversión a cotas ortométricas continúan pendientes.</p>
+    <p class="source-note">Fuente: Pix4D Huasca_MAX_V2 · vuelo 05 jul 2026 · plano T-101.</p>
+  </aside>
+
+  <!-- Selector de vista: nube 3D · terreno MDE 3D · mapa técnico 2D -->
+  <div id="view-mode">
+    <button data-view="points" class="active">Nube 3D</button>
+    <button data-view="terrain">MDE 3D</button>
+    <button data-view="map">Mapa</button>
+  </div>
+  <!-- Vista Mapa 2D · ortomosaico de tiles (Leaflet lazy) -->
+  <div id="map2d" hidden></div>
+
+  <!-- ── Dependencies (order matters for Potree 1.8) ── -->
+
+  <!-- BinaryHeap — required internally by Potree's priority queue -->
+  <script src="assets/potree/libs/other/BinaryHeap.js"></script>
+
+  <!-- jQuery -->
+  <script src="assets/potree/libs/jquery/jquery-3.1.1.min.js"></script>
+
+  <!-- Proj4 (coordinate transforms) -->
+  <script src="assets/potree/libs/proj4/proj4.js"></script>
+
+  <!-- Tween (camera animations) -->
+  <script src="assets/potree/libs/tween/tween.min.js"></script>
+
+  <!-- LAS/LAZ decoder (define LASFile · requerido por nubes con nodos .laz, formato 1.7) -->
+  <script src="assets/potree/libs/plasio/js/laslaz.js"></script>
+
+  <!-- ── Potree 1.8 core ── -->
+  <script src="assets/potree/build/potree/potree.js"></script>
+
+  <script>
+    window.addEventListener('load', async function () {
+
+      try {
+        await window.__maxCloudReady;
+      } catch (error) {
+        console.error('[Max Huasca] No fue posible iniciar la nube 3D:', error);
+        const label = document.getElementById('overlay-label');
+        if (label) label.textContent = 'No fue posible cargar la nube 3D · recarga la página';
+        return;
+      }
+
+      const searchParams = new URLSearchParams(location.search);
+      const sampleMode = false;
+      const infoBtn = document.getElementById('project-info-btn');
+      const infoPanel = document.getElementById('project-info');
+      const setInfoOpen = (open) => {
+        infoPanel.toggleAttribute('hidden', !open);
+        infoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+      infoBtn.addEventListener('click', () => setInfoOpen(infoPanel.hasAttribute('hidden')));
+      infoPanel.querySelector('.close').addEventListener('click', () => setInfoOpen(false));
+      const postSampleState = (action, detail = {}) => {
+        if (sampleMode && window.parent !== window) {
+          window.parent.postMessage({ source: 'dm-potree-sample', action, ...detail }, '*');
+        }
+      };
+      let sampleReady = false;
+      const markSampleReady = () => {
+        if (sampleReady) return;
+        sampleReady = true;
+        postSampleState('ready', { points: 25131914 });
+      };
+      document.getElementById('overlay-label').textContent =
+        'Max · Huasca V2 · 25,131,914 puntos · UTM 14N · Drone Mapping';
+      document.querySelector('#elevation-legend .unit').textContent = 'm · referencia Pix4D*';
+
+      // ── Viewer init ──────────────────────────────────────────────────────
+      const viewer = new Potree.Viewer(
+        document.getElementById('potree_render_area')
+      );
+
+      viewer.setEDLEnabled(true);
+      viewer.setEDLRadius(1.4);
+      // EDL (eye-dome lighting) sombrea por diferencias de profundidad → oscurece
+      // la nube en ciertas perspectivas. Bajamos la intensidad para que se vea más
+      // brillosa/uniforme (antes 0.9 · muy marcado).
+      viewer.setEDLStrength(0.4);
+      viewer.setFOV(60);
+      viewer.setPointBudget(4000000);
+      viewer.setBackground('black');
+
+      // Controles:
+      // · Escritorio (mouse) → earthControls = navegación tipo Google Earth.
+      // · Táctil (móvil/tablet) → earthControls queda como base INACTIVA (su
+      //   update() es no-op en reposo y su drag aborta sin pivot), y un
+      //   controlador táctil PROPIO estilo mapa maneja el gesto: 1 dedo = mover
+      //   sobre el terreno · 2 dedos = pellizcar (zoom) + girar (yaw) + tilt
+      //   (pitch). Antes earthControls no respondía al tacto de 1 dedo (drag
+      //   aborta en `if(!this.pivot)return`, y el pivot solo lo setea `mousedown`
+      //   que el touch nunca dispara).
+      var isTouch = window.matchMedia('(pointer: coarse)').matches;
+      var measuringActive = false;   // suspende la nav táctil mientras se mide
+      // ?controls=external → el padre (deck) renderiza los controles ARRIBA del
+      // iframe y los maneja por postMessage (en móvil, para no tapar el 3D).
+      var externalControls = searchParams.get('controls') === 'external';
+      if (externalControls) document.body.classList.add('ctrl-external');
+
+      viewer.setControls(viewer.earthControls);
+      window._potreeViewer = viewer;
+
+      // ── Acercarse MUCHO más: bajar el near plane ─────────────────────────
+      // Potree fija el near del camera = lowestSpacing*10 (ver Viewer.update). Eso
+      // deja el near MAYOR que el radius al hacer zoom → recorta la superficie que
+      // miras → tope duro de zoom + la nube "desaparece" al acercarse (se siente
+      // como que la navegación se limita). Lo bajamos 10× con un setter en
+      // cameraP.near (no tocamos la librería). Potree reescribe near cada frame con
+      // su valor fresco, así que no se acumula. Beneficia móvil y escritorio.
+      (function patchNearPlane(camP) {
+        var _n = camP.near;
+        Object.defineProperty(camP, 'near', {
+          configurable: true,
+          get: function () { return _n; },
+          // QUIRÚRGICO: dejar el near de Potree TAL CUAL (no escalar) salvo cuando
+          // recortaría la superficie al acercarse. Solo lo bajamos si supera el 60%
+          // del radius (zoom muy cercano). Así el render/tamaño-de-punto/EDL en zoom
+          // normal queda idéntico al stock (no degrada la navegación general) y solo
+          // se interviene en zoom muy cercano para que no recorte.
+          set: function (v) {
+            var r = (viewer.scene && viewer.scene.view && viewer.scene.view.radius) || v;
+            _n = Math.max(0.02, Math.min(v, r * 0.6));
+          }
+        });
+      })(viewer.scene.cameraP);
+
+      if (isTouch) setupMapTouchNav(viewer, function () { return measuringActive; });
+
+      // ── Load cloud ───────────────────────────────────────────────────────
+      Potree.loadPointCloud(
+        'assets/cloud/max-huasca-v2/metadata.json',
+        'max-huasca-v2',
+        function (e) {
+          const pointcloud = e.pointcloud;
+          const material   = pointcloud.material;
+
+          material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+          material.shape         = Potree.PointShape.CIRCLE;
+          material.size          = 2.0;
+
+          // RGB por default (validado · la nube tiene color real)
+          material.activeAttributeName = 'rgba';
+          material.elevationRange = [2086.380, 2166.292];
+
+          // Brillo del coloreado RGB (Diego: la nube se veía algo oscura · 2026-05-28).
+          // rgbGamma <1 levanta midtones (natural) · rgbBrightness suma un lift leve.
+          material.rgbGamma      = 0.80;
+          material.rgbBrightness = 0.12;
+
+          viewer.scene.addPointCloud(pointcloud);
+
+          // ── Paleta de la clasificación ORIGINAL de Pix4D ────────────────
+          // Histograma verificado en el LAZ: 2 suelo · 3/5 vegetación · 6 edificación · 11 camino.
+          const CLASS_COLORS = {
+            2: [0.66, 0.48, 0.31, 1.0],   // Suelo · tierra cálida
+            3: [0.74, 0.89, 0.42, 1.0],   // Veg baja · lima claro
+            4: [0.40, 0.71, 0.26, 1.0],   // Veg media · verde
+            5: [0.13, 0.42, 0.19, 1.0],   // Veg alta · verde bosque
+            6: [0.90, 0.45, 0.18, 1.0],   // Edificación · naranja teja
+            11:[0.54, 0.59, 0.56, 1.0]    // Camino · gris mineral
+          };
+          try {
+            for (const code in CLASS_COLORS) {
+              if (!viewer.classifications[code]) viewer.classifications[code] = { visible: true, name: 'class ' + code };
+              viewer.classifications[code].color = CLASS_COLORS[code];
+              viewer.classifications[code].visible = true;
+            }
+            viewer.setClassifications(viewer.classifications);
+          } catch (err) { console.warn('No pude fijar paleta de clases:', err); }
+
+          // ── Diagnóstico: atributos disponibles en la nube ────────────────
+          try {
+            const attrs = (pointcloud.pcoGeometry && pointcloud.pcoGeometry.pointAttributes
+              && pointcloud.pcoGeometry.pointAttributes.attributes) || [];
+            console.log('Potree · atributos de la nube:', attrs.map(a => a.name));
+            console.log('Potree · activeAttributeName actual:', material.activeAttributeName);
+          } catch (err) { console.warn('No pude listar atributos:', err); }
+
+          // ── Cámara: dos encuadres reproducibles, ambos derivados de datos reales ──
+          // El principal prioriza el predio T-101; el secundario muestra toda la huella procesada.
+          try {
+            const CAMERA = {
+              property: { target:[543132.732, 2234679.436, 2136.418], distance:112, altitude:105, azimuth:Math.PI*1.25 },
+              flight:   { target:[543142.562, 2234724.624, 2138.000], distance:315, altitude:300, azimuth:Math.PI*1.16 }
+            };
+            function applyCamera(name) {
+              const p = CAMERA[name] || CAMERA.property;
+              const camX = p.target[0] + p.distance * Math.cos(p.azimuth);
+              const camY = p.target[1] + p.distance * Math.sin(p.azimuth);
+              const camZ = p.target[2] + p.altitude;
+              const view = viewer.scene.view;
+              view.position.set(camX, camY, camZ);
+              view.lookAt(p.target[0], p.target[1], p.target[2]);
+            }
+            window._dmApplyCameraPreset = applyCamera;
+            applyCamera('property');
+            setTimeout(() => applyCamera('property'), 50);
+            setTimeout(() => applyCamera('property'), 300);
+          } catch (err) {
+            console.warn('No pude orientar cámara:', err);
+            viewer.fitToScreen(0.4);
+          }
+
+          // ── Esconder loading overlay ─────────────────────────────────────
+          // Ocultar en cuanto la nube empieza a renderizar (primer nodo) o tras un
+          // timeout CORTO. Antes (escritorio) se esperaba al "plateau" o 40 s → si
+          // la nube tardaba o fallaba, el cliente veía PANTALLA NEGRA larga con el
+          // spinner encima (bug reportado por Diego). Mostrar la nube en cuanto
+          // llega es mejor que un overlay negro prolongado.
+          var overlay  = document.getElementById('loading-overlay');
+          var loadText = document.getElementById('loading-text');
+          if (isTouch) {
+            if (overlay) overlay.classList.add('hidden');
+            markSampleReady();
+          } else (function hideWhenLoading() {
+            var t0 = Date.now();
+            function pts() {
+              var pc = viewer.scene.pointclouds[0]; if (!pc) return 0;
+              var s = 0, vn = pc.visibleNodes || [];
+              for (var i = 0; i < vn.length; i++) { var n = vn[i]; s += (n.getNumPoints ? n.getNumPoints() : (n.numPoints || 0)); }
+              return s;
+            }
+            (function tick() {
+              if (pts() > 0 || Date.now() - t0 > 8000) { if (overlay) overlay.classList.add('hidden'); markSampleReady(); }
+              else setTimeout(tick, 350);
+            })();
+          })();
+
+          // ── Wire toolbar de medición (Potree.measuringTool) ──────────────
+          const measuringTool = viewer.measuringTool;
+          const toolBtns = document.querySelectorAll('#measure-toolbar button[data-tool]');
+          const presets = {
+            distance: { showDistances:true,  closed:false, name:'Distancia' },
+            area:     { showDistances:true,  showArea:true, closed:true, name:'Área' },
+            height:   { showDistances:false, showHeight:true, closed:false, maxMarkers:2, name:'Altura' },
+            point:    { showCoordinates:true, showAngles:false, showArea:false, closed:false, maxMarkers:1, name:'Punto' }
+          };
+
+          // ══ Cards info contextuales de medición (Opción B · multi-card) ═══
+          // Una card por medición, apiladas bottom-left. Persisten hasta ✕/Limpiar
+          // (permite comparar varias a la vez · ej. distancia + altura). Datos por
+          // tipo desde measure.points[].position (UTM/m · matrixWorld identidad).
+          //
+          // MODO EXTERNO (`?cards=external`): en vez de dibujar las cards DENTRO del
+          // visor, emite los datos por postMessage al padre (el deck las pinta junto
+          // al iframe para no meter ruido visual sobre el 3D). DEFAULT = in-viewer
+          // (lo que querrá cualquier visor/modelo futuro embebido o standalone).
+          const externalCards = new URLSearchParams(location.search).get('cards') === 'external';
+          const stack = document.getElementById('measure-stack');
+          const cards = new Map();      // measure -> { id, el? }
+          const idToMeasure = new Map();
+          let cardIdSeq = 0;
+
+          // Formato numérico es-MX (1,234.56)
+          const nf = (n, dec) => Number(n).toLocaleString('es-MX',
+            { minimumFractionDigits: dec, maximumFractionDigits: dec });
+          const d2 = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);            // dist planimétrica 2D
+          const d3 = (a, b) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z); // dist 3D
+
+          function measureType(m) {
+            if (m.showArea) return 'area';
+            if (m.showHeight) return 'height';
+            if (m.showCoordinates && m.maxMarkers === 1) return 'point';
+            return 'distance';
+          }
+
+          // Calcula los datos de la card (agnóstico al render · sirve in-viewer y postMessage)
+          function computeData(m) {
+            const pts  = m.points.map(p => p.position);
+            const type = measureType(m);
+            if (type === 'point') {
+              const p = pts[0];
+              if (sampleMode) {
+                return { type: 'Punto de muestra', val: nf(p.z, 1), unit: 'm relativos', rows: [
+                  ['Privacidad', 'Coordenadas ocultas'],
+                  ['Sistema', 'Referencia local anonimizada']
+                ], segs: null };
+              }
+              return { type: 'Punto', val: nf(p.z, 2), unit: 'm · referencia Pix4D*', rows: [
+                ['UTM E', '<b>' + nf(p.x, 2) + '</b> m'],
+                ['UTM N', '<b>' + nf(p.y, 2) + '</b> m'],
+                ['Sistema',  'WGS 84 / UTM 14N'],
+                ['Estado', 'amarre INEGI pendiente']
+              ], segs: null };
+            }
+            if (type === 'height') {
+              const a = pts[0], b = pts[pts.length - 1];
+              const dz = Math.abs(b.z - a.z), horiz = d2(a, b);
+              const pend = horiz > 0 ? (dz / horiz) * 100 : 0;
+              const grad = Math.atan2(dz, horiz) * 180 / Math.PI;
+              return { type: 'Altura', val: nf(dz, 2), unit: 'm  Δ vertical', rows: [
+                ['Pendiente',  '<b>' + nf(pend, 1) + '</b> %'],
+                ['Ángulo',     '<b>' + nf(grad, 1) + '</b>°'],
+                ['Horizontal', nf(horiz, 2) + ' m']
+              ], segs: null };
+            }
+            if (type === 'area') {
+              const area = m.getArea(), ha = area / 10000;   // planimétrica (shoelace x,y)
+              let perim = 0;
+              for (let i = 1; i < pts.length; i++) perim += d2(pts[i - 1], pts[i]);
+              if (pts.length > 2) perim += d2(pts[pts.length - 1], pts[0]);
+              const segs = [];
+              for (let i = 1; i < pts.length; i++) segs.push(['Lado ' + i, nf(d2(pts[i-1], pts[i]), 1) + ' m']);
+              if (pts.length > 2) segs.push(['Lado ' + pts.length + ' (cierre)', nf(d2(pts[pts.length-1], pts[0]), 1) + ' m']);
+              return { type: 'Área', val: nf(area, area >= 10000 ? 0 : 1), unit: 'm²', rows: [
+                ['Hectáreas', '<b>' + nf(ha, 3) + '</b> ha'],
+                ['Perímetro', nf(perim, 1) + ' m'],
+                ['Vértices',  pts.length]
+              ], segs: pts.length > 1 ? segs : null };
+            }
+            // distance
+            const total = m.getTotalDistance();   // 3D
+            let zMin = Infinity, zMax = -Infinity;
+            pts.forEach(p => { zMin = Math.min(zMin, p.z); zMax = Math.max(zMax, p.z); });
+            const desnivel = (pts.length > 1) ? (zMax - zMin) : 0;
+            const segs = [];
+            for (let i = 1; i < pts.length; i++) segs.push(['Tramo ' + i, nf(d3(pts[i-1], pts[i]), 2) + ' m']);
+            return { type: 'Distancia', val: nf(total, 2), unit: 'm  (3D)', rows: [
+              ['Tramos',   Math.max(0, pts.length - 1)],
+              ['Desnivel', '<b>' + nf(desnivel, 2) + '</b> m']
+            ], segs: pts.length > 1 ? segs : null };
+          }
+
+          function rowsHTML(pairs) {
+            return pairs.map(([k, v]) =>
+              `<div class="mi-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+          }
+          function segsHTML(segs) {
+            return segs.map(([k, v]) =>
+              `<div class="seg"><span>${k}</span><span class="v">${v}</span></div>`).join('');
+          }
+
+          function cardTemplate() {
+            const el = document.createElement('div');
+            el.className = 'mi-card';
+            el.innerHTML =
+              '<div class="mi-head">' +
+                '<div class="mi-type"><span class="dot"></span><span class="mi-type-label">Medición</span></div>' +
+                '<button class="mi-close" aria-label="Cerrar medición" title="Cerrar">✕</button>' +
+              '</div>' +
+              '<div class="mi-primary"><span class="val">—</span><span class="unit"></span></div>' +
+              '<div class="mi-rows"></div>' +
+              '<div class="mi-segs" style="display:none"></div>';
+            return el;
+          }
+
+          function paintCard(el, data) {
+            el.querySelector('.mi-type-label').textContent = data.type;
+            el.querySelector('.mi-primary .val').textContent = data.val;
+            el.querySelector('.mi-primary .unit').textContent = data.unit;
+            el.querySelector('.mi-rows').innerHTML = rowsHTML(data.rows);
+            const seg = el.querySelector('.mi-segs');
+            if (data.segs && data.segs.length) { seg.innerHTML = segsHTML(data.segs); seg.style.display = 'flex'; }
+            else { seg.innerHTML = ''; seg.style.display = 'none'; }
+          }
+
+          function renderCard(m) {
+            const entry = cards.get(m);
+            if (!entry || !m.points || m.points.length === 0) return;
+            const data = computeData(m);
+            if (externalCards) {
+              parent.postMessage({ source: 'potree-cards', action: 'render', id: entry.id, data }, '*');
+            } else if (entry.el) {
+              paintCard(entry.el, data);
+            }
+          }
+
+          function openCard(m) {
+            let entry = cards.get(m);
+            if (!entry) {
+              entry = { id: ++cardIdSeq };
+              cards.set(m, entry);
+              idToMeasure.set(entry.id, m);
+              if (!externalCards) {
+                const el = cardTemplate();
+                el.querySelector('.mi-close').addEventListener('click', () => closeCard(m));
+                stack.appendChild(el);            // se apila debajo (más nueva junto al ancla)
+                entry.el = el;
+                document.body.classList.add('measure-open');
+              }
+            }
+            renderCard(m);
+            if (entry.el) entry.el.scrollIntoView({ block: 'nearest' });
+            return entry;
+          }
+          function closeCard(m) {
+            const entry = cards.get(m);
+            if (!entry) return;
+            if (entry.el) entry.el.remove();
+            if (externalCards) parent.postMessage({ source: 'potree-cards', action: 'close', id: entry.id }, '*');
+            idToMeasure.delete(entry.id);
+            cards.delete(m);
+            if (cards.size === 0) document.body.classList.remove('measure-open');
+          }
+          function closeAllCards() {
+            if (externalCards) parent.postMessage({ source: 'potree-cards', action: 'clear' }, '*');
+            cards.forEach((e) => { if (e.el) e.el.remove(); });
+            cards.clear();
+            idToMeasure.clear();
+            document.body.classList.remove('measure-open');
+          }
+
+          // Modo externo: el padre (deck) avisa cuando el usuario cierra una card con su ✕
+          if (externalCards) {
+            window.addEventListener('message', (e) => {
+              const d = e.data;
+              if (!d || d.source !== 'potree-cards-cmd') return;
+              if (d.action === 'close') { const m = idToMeasure.get(d.id); if (m) closeCard(m); }
+            });
+          }
+
+          // ⚠ NO usar viewer.inputHandler.toggleSelection() con mediciones: el
+          // TransformationTool lee selection[0].boundingBox.getCenter() cada frame
+          // y los spheres de Measure NO tienen boundingBox → crash + overlay de error.
+          // Usamos el evento 'click' del sphere (lo dispara onMouseUp sin tocar la
+          // selección) para abrir/refrescar su card. Las cards persisten hasta ✕/Limpiar.
+          function attachClick(sphere, m) {
+            if (!sphere || sphere.__clkAttached) return;
+            sphere.__clkAttached = true;
+            sphere.userData.__measure = m;
+            sphere.addEventListener('click', () => openCard(m));   // 'click' = onMouseUp · sin selección
+          }
+
+          // Wirea una medición: clickeable (re-ver) + refresco en vivo de su card.
+          function wireMeasure(m) {
+            if (m.__wired) return;
+            m.__wired = true;
+            m.spheres.forEach((s) => attachClick(s, m));
+            m.addEventListener('marker_added', (e) => attachClick(e.sphere, m));
+            const refresh = () => { if (cards.has(m)) renderCard(m); };
+            ['marker_added','marker_dropped','marker_moved','marker_removed']
+              .forEach((ev) => m.addEventListener(ev, refresh));
+          }
+
+          // Wirea mediciones existentes y futuras (las de la toolbar pasan por aquí
+          // vía 'measurement_added'). Al remover una medición, cierra su card.
+          viewer.scene.measurements.forEach(wireMeasure);
+          viewer.scene.addEventListener('measurement_added',   (e) => { if (e.measurement) wireMeasure(e.measurement); });
+          viewer.scene.addEventListener('measurement_removed', (e) => { if (e.measurement) closeCard(e.measurement); });
+
+          // Activación de herramienta (reusable: botones in-iframe + comandos externos del deck)
+          function clearMeasurements() {
+            viewer.scene.measurements.slice().forEach(m => viewer.scene.removeMeasurement(m));
+            try { viewer.scene.profiles.slice().forEach(p => viewer.scene.removeProfile(p)); } catch (e) {}
+            try { viewer.scene.volumes.slice().forEach(v => viewer.scene.removeVolume(v)); } catch (e) {}
+            toolBtns.forEach(b => b.classList.remove('active'));
+            closeAllCards();
+            if (typeof clearExtraCards === 'function') clearExtraCards();
+            measuringActive = false;   // reanuda la navegación táctil
+            if (externalControls) parent.postMessage({ source:'potree-state', action:'tool', value:null }, '*');
+          }
+          function activateTool(tool) {
+            if (tool === 'clear') { clearMeasurements(); return; }
+            if (sampleMode && tool === 'point') return;
+            toolBtns.forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+            measuringActive = true;    // mientras se mide/dibuja, el gesto coloca puntos (no navega)
+            if (tool === 'profile') { startProfileTool(); return; }
+            if (tool === 'volume')  { startVolumeTool();  return; }
+            const m = measuringTool.startInsertion(presets[tool]);
+            wireMeasure(m);
+            openCard(m);   // feedback en vivo: la card aparece y se actualiza al colocar puntos
+          }
+          toolBtns.forEach(btn => btn.addEventListener('click', () => activateTool(btn.dataset.tool)));
+
+          // ── Leyenda de elevación (solo visible en modo 'elevation') ─────
+          const legend  = document.getElementById('elevation-legend');
+          const teNodes = [0,1,2,3,4].map(i => document.getElementById('ele-t' + i));
+          function updateElevationLegend(attr) {
+            // Marca en el body para que el CSS móvil eleve las cards sobre la leyenda
+            document.body.classList.toggle('elevation-on', attr === 'elevation');
+            const isElev = attr === 'elevation';
+            let ticks = null;
+            if (isElev) {
+              // Lee elevationRange real del material (Potree lo inicializa desde bbox.z)
+              let lo = null, hi = null;
+              try {
+                const r = material.elevationRange;
+                if (Array.isArray(r) && r.length === 2) { lo = r[0]; hi = r[1]; }
+              } catch (e) { /* noop */ }
+              if (lo == null || hi == null) {
+                lo = 2086.380;
+                hi = 2166.292;
+              }
+
+              const t = (frac) => Math.round(lo + (hi - lo) * frac);
+              ticks = [t(0), t(0.25), t(0.5), t(0.75), t(1)];
+              // Bordes con sufijo 'm'; intermedios solo número.
+              teNodes[0].textContent = ticks[0] + ' m';
+              teNodes[1].textContent = ticks[1];
+              teNodes[2].innerHTML   = '<b>' + ticks[2] + '</b>';
+              teNodes[3].textContent = ticks[3];
+              teNodes[4].textContent = ticks[4] + ' m';
+              legend.classList.add('visible');
+              legend.setAttribute('aria-hidden', 'false');
+            } else {
+              legend.classList.remove('visible');
+              legend.setAttribute('aria-hidden', 'true');
+            }
+            // En modo externo, el padre (deck) pinta la leyenda arriba del iframe
+            if (externalControls) parent.postMessage({ source:'potree-state', action:'legend', visible:isElev, ticks }, '*');
+          }
+
+          // ── Leyenda de clasificación (solo visible en modo 'classification') ──
+          const classLegend = document.getElementById('class-legend');
+          function updateClassLegend(attr) {
+            if (!classLegend) return;
+            const on = attr === 'classification';
+            classLegend.classList.toggle('visible', on);
+            classLegend.setAttribute('aria-hidden', on ? 'false' : 'true');
+          }
+
+          // ── Color (RGB ↔ Clasif ↔ Elevación) · reusable in-iframe + externo ──
+          const colorBtns = document.querySelectorAll('#color-toggle button[data-color]');
+          function applyColor(value) {
+            colorBtns.forEach(b => b.classList.toggle('active', b.dataset.color === value));
+            material.activeAttributeName = value;
+            updateElevationLegend(value);
+            updateClassLegend(value);
+            // Curvas de nivel auto-ON en vistas técnicas (Clasificación / Elevación), OFF en RGB.
+            // setContours es function-declaration (hoisted); applyColor solo se llama por
+            // interacción del usuario (post-init) → la maquinaria de curvas ya existe.
+            if (typeof setContours === 'function' && value !== 'rgba') setContours(true);
+          }
+          colorBtns.forEach(btn => btn.addEventListener('click', () => applyColor(btn.dataset.color)));
+          // Estado inicial (RGB por default · leyenda oculta)
+          updateElevationLegend(material.activeAttributeName);
+
+          // ── Wire density slider (point budget) ──────────────────────────
+          const dSlider = document.getElementById('density-slider');
+          const dValue  = document.getElementById('density-value');
+          function fmtBudget(v) {
+            return v >= 1000000
+              ? (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + ' M'
+              : (v / 1000).toFixed(0) + ' K';
+          }
+          function applyDensity(v) {
+            v = parseInt(v, 10);
+            if (!v) return;
+            viewer.setPointBudget(v);
+            if (dValue)  dValue.textContent = fmtBudget(v);
+            if (dSlider) dSlider.value = v;
+          }
+          dSlider.addEventListener('input', () => applyDensity(dSlider.value));
+          // Sync inicial: el slider ya marca 4M = lo que ya setteamos arriba
+          dValue.textContent = fmtBudget(parseInt(dSlider.value, 10));
+
+          // ════════════════════════════════════════════════════════════════
+          //  Panel "Capas" + F1 filtro clasificación + F2 curvas + F3 perfil + F4 volumen
+          // ════════════════════════════════════════════════════════════════
+          const layersBtn = document.getElementById('layers-btn');
+          const layersPanel = document.getElementById('layers-panel');
+          if (layersBtn && layersPanel) {
+            layersBtn.addEventListener('click', () => {
+              const willOpen = layersPanel.hasAttribute('hidden');
+              if (willOpen) layersPanel.removeAttribute('hidden'); else layersPanel.setAttribute('hidden', '');
+              layersBtn.classList.toggle('open', willOpen);
+            });
+          }
+          document.querySelectorAll('[data-camera]').forEach(btn => btn.addEventListener('click', () => {
+            if (window._dmApplyCameraPreset) {
+              const name = btn.dataset.camera;
+              window._dmApplyCameraPreset(name);
+              setTimeout(() => window._dmApplyCameraPreset(name), 60);
+            }
+          }));
+
+          // ── F1 · Filtro de clasificación (ver terreno limpio) ──────────
+          // Terreno = 2 suelo + 11 camino (nunca se ocultan). Grupos togglables:
+          const CLASS_GROUPS = { veg: [3,4,5], const: [6], obj: [0,1,8,9,12] };
+          function setGroupVisible(grp, vis) {
+            (CLASS_GROUPS[grp] || []).forEach(c => viewer.setClassificationVisibility(c, vis));
+          }
+          const grpChips = Array.from(document.querySelectorAll('#layers .lp-chip[data-grp]'));
+          function setChip(chip, on) { chip.classList.toggle('on', on); setGroupVisible(chip.dataset.grp, on); }
+          // Al ocultar algo en modo RGB, pasar a Elevación para que el suelo se lea.
+          function colorForCleanIfNeeded() {
+            const anyHidden = grpChips.some(c => !c.classList.contains('on'));
+            if (anyHidden && material.activeAttributeName === 'rgba') applyColor('elevation');
+          }
+          grpChips.forEach(chip => chip.addEventListener('click', () => { setChip(chip, !chip.classList.contains('on')); colorForCleanIfNeeded(); }));
+          document.querySelectorAll('#layers .lp-act[data-act]').forEach(btn => btn.addEventListener('click', () => {
+            const showAll = btn.dataset.act === 'all';
+            grpChips.forEach(chip => setChip(chip, showAll));
+            if (!showAll && material.activeAttributeName === 'rgba') applyColor('elevation');
+          }));
+
+          // ── Capas técnicas reales: curvas · deslinde drapeado · MDE 3D ──
+          let contourGroup = null, contourLabels = [], contoursReady = false;
+          let boundaryLine = null, boundaryLabels = [], boundaryReady = false;
+          let terrainMesh = null, terrainReady = false;
+          const techOverlayScene = new viewer.scene.scene.constructor();
+          techOverlayScene.name = 'capas-tecnicas-overlay';
+          viewer.addEventListener('render.pass.perspective_overlay', () => {
+            viewer.renderer.render(techOverlayScene, viewer.scene.getActiveCamera());
+          });
+          const contoursChip = document.querySelector('#layers .lp-chip[data-layer="contours"]');
+          const boundaryChip = document.querySelector('#layers .lp-chip[data-layer="boundary"]');
+          const terrainChip = document.querySelector('#layers .lp-chip[data-layer="terrain"]');
+
+          function harvestTHREE() {
+            const Vector3 = viewer.scene.view.position.constructor;
+            let LineCls, GeomCls, LineMatCls, BufferAttrCls;
+            let MeshCls, MeshMatCls, Line2Cls, LineGeometryCls, LineMaterialCls;
+            try {
+              const box = new Potree.Box3Helper(pointcloud.boundingBox);
+              LineCls = Object.getPrototypeOf(box.constructor.prototype).constructor;
+              GeomCls = box.geometry.constructor;
+              LineMatCls = box.material.constructor;
+              BufferAttrCls = box.geometry.attributes.position.constructor;
+            } catch (e) { console.warn('No pude obtener BufferGeometry:', e); }
+            try {
+              const volume = new Potree.BoxVolume();
+              const mesh = volume.box || volume.children.find(o => /Mesh/.test(o.type || ''));
+              if (mesh) { MeshCls = mesh.constructor; MeshMatCls = mesh.material.constructor; }
+            } catch (e) { console.warn('No pude obtener Mesh:', e); }
+            try {
+              const measure = new Potree.Measure();
+              measure.addMarker(new Vector3(0, 0, 0));
+              measure.addMarker(new Vector3(1, 0, 0));
+              const edge = measure.edges && measure.edges[0];
+              if (edge) {
+                Line2Cls = edge.constructor;
+                LineGeometryCls = edge.geometry.constructor;
+                LineMaterialCls = edge.material.constructor;
+              }
+            } catch (e) { console.warn('Line2 no disponible; usaré ribbon:', e); }
+            return { Vector3, LineCls, GeomCls, LineMatCls, BufferAttrCls, MeshCls, MeshMatCls, Line2Cls, LineGeometryCls, LineMaterialCls };
+          }
+          const T = harvestTHREE();
+
+          function buildContours(data) {
+            const verts = [];
+            data.polylines.forEach(poly => { for (let i = 1; i < poly.coordinates.length; i++) {
+              const a = poly.coordinates[i - 1], b = poly.coordinates[i];
+              verts.push(new T.Vector3(a[0], a[1], a[2] + 0.22));
+              verts.push(new T.Vector3(b[0], b[1], b[2] + 0.22));
+            }});
+            const geom = new T.GeomCls().setFromPoints(verts);
+            const mat = new T.LineMatCls({ color: 0xA7E84F, transparent: true, opacity: 0.72, depthWrite: false, depthTest: false });
+            const seg = new T.LineCls(geom, mat);
+            seg.position.set(...data.coordinate_space.origin);
+            seg.renderOrder = 700;
+            seg.name = 'curvas-dtm-050m';
+            return seg;
+          }
+          function buildContourLabels(data) {
+            const labels = [], perLevel = {};
+            data.polylines.filter(poly => poly.index).forEach(poly => {
+              if (poly.coordinates.length < 5 || (perLevel[poly.elev_m] || 0) >= 2) return;
+              perLevel[poly.elev_m] = (perLevel[poly.elev_m] || 0) + 1;
+              const p = poly.coordinates[Math.floor(poly.coordinates.length / 2)];
+              const o = data.coordinate_space.origin;
+              let spr;
+              try { spr = new Potree.TextSprite(poly.elev_m.toFixed(0) + ' m'); } catch (e) { return; }
+              try { spr.setTextColor({ r: 224, g: 255, b: 190, a: 1 }); } catch (e) {}
+              try { spr.setBackgroundColor({ r: 12, g: 18, b: 13, a: 0.76 }); } catch (e) {}
+              try { spr.setBorderColor({ r: 123, g: 193, b: 66, a: 0.85 }); } catch (e) {}
+              spr.position.set(o[0] + p[0], o[1] + p[1], o[2] + p[2] + 1.0);
+              spr.name = 'etiqueta-curva-indice';
+              labels.push(spr);
+            });
+            return labels;
+          }
+          async function ensureContours() {
+            if (contoursReady) return;
+            const data = await fetch('assets/data/contours-3d.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+            contourGroup = buildContours(data);
+            contourGroup.visible = false;
+            techOverlayScene.add(contourGroup);
+            contourLabels = buildContourLabels(data);
+            contourLabels.forEach(s => { s.visible = false; techOverlayScene.add(s); });
+            contoursReady = true;
+          }
+          async function setContours(show) {
+            try { await ensureContours(); } catch (e) { console.warn('Curvas no disponibles:', e); return; }
+            contoursChip.classList.toggle('active', show);
+            contourGroup.visible = show;
+            contourLabels.forEach(s => { s.visible = show; });
+          }
+
+          function buildBoundaryRibbon(data) {
+            const ring = data.ring_potree_local_xyz, pos = [], idx = [], half = 0.24;
+            for (let i = 1; i < ring.length; i++) {
+              const a = ring[i - 1], b = ring[i], dx = b[0] - a[0], dy = b[1] - a[1];
+              const len = Math.hypot(dx, dy) || 1, nx = -dy / len * half, ny = dx / len * half, base = pos.length / 3;
+              pos.push(a[0]+nx,a[1]+ny,a[2]+0.45, a[0]-nx,a[1]-ny,a[2]+0.45,
+                       b[0]+nx,b[1]+ny,b[2]+0.45, b[0]-nx,b[1]-ny,b[2]+0.45);
+              idx.push(base,base+1,base+2, base+1,base+3,base+2);
+            }
+            const geom = new T.GeomCls();
+            geom.setAttribute('position', new T.BufferAttrCls(new Float32Array(pos), 3));
+            geom.setIndex(idx);
+            const mat = new T.MeshMatCls({ color:0xFF453A, transparent:true, opacity:0.97, depthTest:false, depthWrite:false, side:2 });
+            const mesh = new T.MeshCls(geom, mat);
+            mesh.position.set(...data.coordinate_space.potree_local_origin);
+            mesh.renderOrder = 900;
+            return mesh;
+          }
+          function buildBoundaryLine(data) {
+            if (!(T.Line2Cls && T.LineGeometryCls && T.LineMaterialCls)) return buildBoundaryRibbon(data);
+            const flat = [];
+            data.ring_potree_local_xyz.forEach(p => flat.push(p[0], p[1], p[2] + 0.55));
+            const geom = new T.LineGeometryCls(); geom.setPositions(flat);
+            const mat = new T.LineMaterialCls({ color:0xFF453A, linewidth:4, transparent:true, opacity:0.98, depthTest:false, depthWrite:false });
+            if (mat.resolution && mat.resolution.set) mat.resolution.set(viewer.renderer.domElement.clientWidth, viewer.renderer.domElement.clientHeight);
+            const line = new T.Line2Cls(geom, mat);
+            if (line.computeLineDistances) line.computeLineDistances();
+            line.position.set(...data.coordinate_space.potree_local_origin);
+            line.renderOrder = 900;
+            line.name = 'deslinde-t101-drapeado';
+            return line;
+          }
+          function buildBoundaryLabels(data) {
+            return data.vertices.map(v => {
+              let spr;
+              try { spr = new Potree.TextSprite(v.id); } catch (e) { return null; }
+              try { spr.setTextColor({ r:255,g:255,b:255,a:1 }); } catch (e) {}
+              try { spr.setBackgroundColor({ r:130,g:12,b:10,a:.86 }); } catch (e) {}
+              try { spr.setBorderColor({ r:255,g:69,b:58,a:1 }); } catch (e) {}
+              spr.position.set(v.utm[0], v.utm[1], v.utm[2] + 1.7);
+              spr.name = 'vertice-' + v.id;
+              return spr;
+            }).filter(Boolean);
+          }
+          async function ensureBoundary() {
+            if (boundaryReady) return;
+            const data = await fetch('assets/data/predio-3d.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+            boundaryLine = buildBoundaryLine(data);
+            boundaryLine.visible = false;
+            techOverlayScene.add(boundaryLine);
+            boundaryLabels = buildBoundaryLabels(data);
+            boundaryLabels.forEach(s => { s.visible = false; techOverlayScene.add(s); });
+            boundaryReady = true;
+          }
+          async function setBoundary(show) {
+            try { await ensureBoundary(); } catch (e) { console.warn('Deslinde no disponible:', e); return; }
+            boundaryChip.classList.toggle('active', show);
+            boundaryLine.visible = show;
+            boundaryLabels.forEach(s => { s.visible = show; });
+          }
+
+          async function ensureTerrain() {
+            if (terrainReady) return;
+            const data = await fetch('assets/data/mde-mesh.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+            const geom = new T.GeomCls();
+            geom.setAttribute('position', new T.BufferAttrCls(new Float32Array(data.positions_xyz), 3));
+            const colors = new Float32Array(data.colors_rgb.length);
+            for (let i = 0; i < colors.length; i++) colors[i] = data.colors_rgb[i] / 255;
+            geom.setAttribute('color', new T.BufferAttrCls(colors, 3));
+            geom.setIndex(data.indices);
+            const mat = new T.MeshMatCls({ vertexColors:true, transparent:true, opacity:0.90, depthWrite:true, depthTest:true, side:2 });
+            terrainMesh = new T.MeshCls(geom, mat);
+            terrainMesh.position.set(data.origin_utm_xyz[0], data.origin_utm_xyz[1], data.origin_utm_xyz[2] + 0.04);
+            terrainMesh.visible = false;
+            terrainMesh.name = 'mde-dtm-pix4d';
+            viewer.scene.scene.add(terrainMesh);
+            document.getElementById('mde-min').textContent = '2,122.54 m';
+            document.getElementById('mde-max').textContent = '2,159.89 m';
+            terrainReady = true;
+          }
+          async function setTerrainMode(show) {
+            if (show) {
+              try { await ensureTerrain(); } catch (e) { console.warn('MDE 3D no disponible:', e); return; }
+            }
+            if (terrainMesh) terrainMesh.visible = show;
+            document.body.classList.toggle('terrain-view', show);
+            terrainChip.classList.toggle('active', show);
+            document.getElementById('overlay-label').textContent = show
+              ? 'MDE · DTM Pix4D · malla 2 m · alturas constShift · amarre INEGI pendiente'
+              : 'Max · Huasca V2 · 25,131,914 puntos · UTM 14N · Drone Mapping';
+          }
+          window._dmSetTerrainMode = setTerrainMode;
+
+          contoursChip.addEventListener('click', () => setContours(!contoursChip.classList.contains('active')));
+          boundaryChip.addEventListener('click', () => setBoundary(!boundaryChip.classList.contains('active')));
+          terrainChip.addEventListener('click', () => setTerrainMode(!terrainChip.classList.contains('active')));
+          Promise.all([setContours(true), setBoundary(true)]).catch(e => console.warn('Capas iniciales:', e));
+
+          // TextSprite no auto-escala fuera del árbol de anotaciones: tamaño aparente estable.
+          viewer.addEventListener('update', () => {
+            const cam = viewer.scene.getActiveCamera();
+            if (boundaryLine && boundaryLine.material && boundaryLine.material.resolution) {
+              boundaryLine.material.resolution.set(
+                viewer.renderer.domElement.clientWidth,
+                viewer.renderer.domElement.clientHeight
+              );
+            }
+            [...contourLabels, ...boundaryLabels].forEach(s => {
+              if (!s.visible) return;
+              const d = cam.position.distanceTo(s.position);
+              const k = Math.max(1.4, d * (s.name.indexOf('vertice-') === 0 ? 0.032 : 0.043));
+              s.scale.set(k, k, k);
+            });
+            if (boundaryLine && boundaryLine.material && boundaryLine.material.resolution) {
+              boundaryLine.material.resolution.set(viewer.renderer.domElement.clientWidth, viewer.renderer.domElement.clientHeight);
+            }
+          });
+
+          // ── Cards extra (volumen/perfil) · reusan cardTemplate/stack ────
+          const extraCards = new Set();
+          function addExtraCard() {
+            const el = cardTemplate(); stack.appendChild(el);
+            document.body.classList.add('measure-open'); extraCards.add(el); return el;
+          }
+          function removeExtraCard(el) {
+            if (el) { el.remove(); extraCards.delete(el); }
+            if (cards.size === 0 && extraCards.size === 0) document.body.classList.remove('measure-open');
+          }
+          function clearExtraCards() { extraCards.forEach(el => el.remove()); extraCards.clear(); }
+
+          // ── F4 · Volumen / cubicación ──────────────────────────────────
+          function startVolumeTool() {
+            let vol;
+            try { vol = viewer.volumeTool.startInsertion({ clip: false }); }
+            catch (e) { console.warn('volumeTool falló', e); return; }
+            const el = addExtraCard();
+            el.querySelector('.mi-close').addEventListener('click', () => { try { viewer.scene.removeVolume(vol); } catch (e) {} removeExtraCard(el); });
+            let last = '';
+            const paint = () => {
+              if (!vol) return;
+              const sx = vol.scale.x, sy = vol.scale.y, sz = vol.scale.z;
+              const key = sx.toFixed(2)+sy.toFixed(2)+sz.toFixed(2);
+              if (key === last) return; last = key;
+              let m3 = 0; try { m3 = vol.getVolume(); } catch (e) { m3 = sx*sy*sz; }
+              paintCard(el, { type: 'Volumen', val: nf(m3, m3 >= 100 ? 0 : 1), unit: 'm³', rows: [
+                ['Largo', nf(sx, 1) + ' m'], ['Ancho', nf(sy, 1) + ' m'], ['Alto', nf(sz, 1) + ' m']
+              ], segs: null });
+            };
+            paint();
+            const onUpd = () => paint();
+            viewer.addEventListener('update', onUpd);
+            viewer.scene.addEventListener('volume_removed', function h(e) { if (e.volume === vol) { viewer.removeEventListener('update', onUpd); viewer.scene.removeEventListener('volume_removed', h); } });
+          }
+
+          // ── F3 · Perfil topográfico ────────────────────────────────────
+          function renderProfileChart(el, pts) {
+            const P = (pts || []).map(p => ({ x: p.x, y: p.y, z: p.z }));
+            if (P.length < 2) {
+              paintCard(el, { type: 'Perfil del terreno', val: '—', unit: 'traza la línea sobre el terreno', rows: [['Vértices', P.length]], segs: null });
+              return;
+            }
+            const dcum = [0]; let total = 0;
+            for (let i = 1; i < P.length; i++) { total += Math.hypot(P[i].x - P[i-1].x, P[i].y - P[i-1].y); dcum.push(total); }
+            let zmin = Infinity, zmax = -Infinity; P.forEach(p => { zmin = Math.min(zmin, p.z); zmax = Math.max(zmax, p.z); });
+            const dz = zmax - zmin;
+            const W = 230, H = 86, padL = 3, padR = 3, padT = 7, padB = 12;
+            const sx = d => padL + (total > 0 ? d / total : 0) * (W - padL - padR);
+            const sy = z => padT + (dz > 0 ? (zmax - z) / dz : 0.5) * (H - padT - padB);
+            let line = '', area = 'M' + sx(0).toFixed(1) + ',' + (H - padB);
+            P.forEach((p, i) => { const X = sx(dcum[i]).toFixed(1), Y = sy(p.z).toFixed(1); line += (i ? 'L' : 'M') + X + ',' + Y + ' '; area += 'L' + X + ',' + Y + ' '; });
+            area += 'L' + sx(total).toFixed(1) + ',' + (H - padB) + ' Z';
+            const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" preserveAspectRatio="none" style="display:block;margin-top:2px">' +
+              '<path d="' + area + '" fill="rgba(123,193,66,0.16)"/>' +
+              '<path d="' + line + '" fill="none" stroke="#A5D570" stroke-width="1.6"/></svg>';
+            const slope = total > 0 ? (Math.abs(P[P.length-1].z - P[0].z) / total * 100) : 0;
+            el.querySelector('.mi-type-label').textContent = 'Perfil del terreno';
+            el.querySelector('.mi-primary .val').textContent = nf(total, 1);
+            el.querySelector('.mi-primary .unit').textContent = 'm  (longitud)';
+            el.querySelector('.mi-rows').innerHTML =
+              '<div class="mi-row"><span class="k">Desnivel</span><span class="v"><b>' + nf(dz, 2) + '</b> m</span></div>' +
+              '<div class="mi-row"><span class="k">Elev. máx · mín</span><span class="v">' + nf(zmax, 1) + ' · ' + nf(zmin, 1) + ' m</span></div>' +
+              '<div class="mi-row"><span class="k">Pendiente media</span><span class="v">' + nf(slope, 1) + ' %</span></div>';
+            const seg = el.querySelector('.mi-segs'); seg.style.display = 'block'; seg.innerHTML = svg;
+          }
+          function startProfileTool() {
+            let profile;
+            try { profile = viewer.profileTool.startInsertion({ width: 0 }); }
+            catch (e) { console.warn('profileTool falló', e); return; }
+            try { profile.setWidth(4); } catch (e) {}
+            const el = addExtraCard();
+            el.querySelector('.mi-close').addEventListener('click', () => { try { viewer.scene.removeProfile(profile); } catch (e) {} removeExtraCard(el); });
+            const refresh = () => renderProfileChart(el, profile.points || []);
+            ['marker_added','marker_moved','marker_dropped','marker_removed'].forEach(ev => { try { profile.addEventListener(ev, refresh); } catch (e) {} });
+            refresh();
+          }
+
+          // ── Comandos del padre (modo ?controls=external · controles arriba del iframe) ──
+          if (externalControls) {
+            window.addEventListener('message', (e) => {
+              const d = e.data;
+              if (!d || d.source !== 'potree-ctrl') return;
+              if      (d.action === 'color')    applyColor(d.value);
+              else if (d.action === 'density')  applyDensity(d.value);
+              else if (d.action === 'tool')     activateTool(d.value);
+              else if (d.action === 'clear')    clearMeasurements();
+              else if (d.action === 'stoptool') { measuringActive = false; toolBtns.forEach(b => b.classList.remove('active')); }  // reanuda nav sin borrar
+            });
+          }
+
+          console.log('Potree cloud loaded · earthControls' + (isTouch ? ' + map-touch' : '') + (externalControls ? ' + external-controls' : ''));
+        }
+      );
+
+      // No cargar sidebar de Potree (UI propia)
+      viewer.loadGUI = function () {};
+
+      // ══ Controlador táctil estilo mapa (móvil) ════════════════════════════
+      // earthControls queda como base inactiva (no-op en reposo · su drag aborta
+      // sin pivot). Aquí manejamos el gesto directo sobre viewer.scene.view:
+      //   · 1 dedo  → desplazar sobre el terreno (view.pan, escalado por radius)
+      //   · 2 dedos → pellizcar = zoom · girar = yaw · arrastrar vertical = tilt
+      //               todo alrededor del punto que mira la cámara (getPivot).
+      // Permite acercarse MUCHO más (radius mín 0.1 m). Vectores construidos con
+      // los métodos de las instancias Vector3 (THREE no es global): clone/set/etc.
+      function setupMapTouchNav(viewer, isMeasuring) {
+        const el = viewer.renderer.domElement;
+        const MIN_R = 0.1, MAX_R = 6000;   // piso de zoom muy bajo · el near capado por radius evita el recorte
+        let mode = 0, p = null;
+        const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+        const mid  = (t) => ({ x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2 });
+        const ang  = (t) => Math.atan2(t[1].clientY - t[0].clientY, t[1].clientX - t[0].clientX);
+
+        function start(e) {
+          if (isMeasuring()) return;       // dejar que el tap coloque puntos de medición
+          const t = e.touches;
+          if (t.length === 1) { mode = 1; p = { x:t[0].clientX, y:t[0].clientY }; e.preventDefault(); }
+          else if (t.length >= 2) { mode = 2; p = { d:dist(t), m:mid(t), a:ang(t) }; e.preventDefault(); }
+        }
+        function move(e) {
+          if (isMeasuring() || !mode) return;
+          const t = e.touches, v = viewer.scene.view;
+          const W = el.clientWidth || 1, H = el.clientHeight || 1;
+          if (mode === 1 && t.length === 1) {
+            const dx = t[0].clientX - p.x, dy = t[0].clientY - p.y;
+            p = { x:t[0].clientX, y:t[0].clientY };
+            const g = v.radius * 1.6;       // pan ∝ distancia · velocidad de la nav "buena" (1.0 se sintió lento/limitado)
+            v.pan(-(dx / W) * g, (dy / H) * g);   // el terreno sigue al dedo
+            e.preventDefault();
+          } else if (mode === 2 && t.length >= 2) {
+            const d = dist(t), m = mid(t), a = ang(t);
+            const pivot = v.getPivot();                 // punto que mira la cámara
+            const toCam = v.position.clone().sub(pivot);
+            const Z = v.position.clone().set(0, 0, 1);   // eje vertical mundo
+            // zoom: escala distancia cámara↔pivote
+            let len = toCam.length();
+            if (p.d > 0 && d > 0) len = Math.max(MIN_R, Math.min(MAX_R, len * (p.d / d)));
+            // girar (yaw): twist de los 2 dedos alrededor del eje vertical
+            toCam.applyAxisAngle(Z, (a - p.a));   // signo: girar 2 dedos → la nube gira en el MISMO sentido
+            // tilt (pitch): arrastre vertical del punto medio · sin voltear bajo el horizonte
+            const side = toCam.clone().cross(Z);
+            if (side.length() > 1e-6) {
+              side.normalize();
+              const dPitch = ((m.y - p.m.y) / H) * 2.2;   // tilt · velocidad de la nav "buena"
+              const test = toCam.clone().applyAxisAngle(side, dPitch);
+              if (test.z > 0.05 * test.length()) toCam.applyAxisAngle(side, dPitch);
+            }
+            toCam.normalize().multiplyScalar(len);
+            v.position.copy(pivot.clone().add(toCam));
+            v.lookAt(pivot.x, pivot.y, pivot.z);          // recomputa yaw/pitch/radius coherentes
+            p = { d:d, m:m, a:a };
+            e.preventDefault();
+          }
+        }
+        function end(e) {
+          const t = e.touches;
+          if (t.length === 0) mode = 0;
+          else if (t.length === 1) { mode = 1; p = { x:t[0].clientX, y:t[0].clientY }; }
+          else { mode = 2; p = { d:dist(t), m:mid(t), a:ang(t) }; }
+        }
+        el.addEventListener('touchstart',  start, { passive:false });
+        el.addEventListener('touchmove',   move,  { passive:false });
+        el.addEventListener('touchend',    end,   { passive:false });
+        el.addEventListener('touchcancel', end,   { passive:false });
+      }
+
+    });
+  </script>
+
+  <!-- ════ Vistas: nube 3D · MDE 3D · mapa técnico 2D ════ -->
+  <script src="assets/vendor/leaflet/leaflet.js"></script>
+  <script>
+  (function () {
+    const vm = document.getElementById('view-mode');
+    const map2d = document.getElementById('map2d');
+    let mapReady = false, lmap = null;
+
+    const checkedJSON = url => fetch(url).then(r => {
+      if (!r.ok) throw new Error(r.status + ' · ' + url);
+      return r.json();
+    });
+    const toLeafletBounds = b => L.latLngBounds([b[1], b[0]], [b[3], b[2]]);
+
+    async function ensureMap() {
+      if (mapReady) return;
+      mapReady = true;
+      try {
+        const [project, predio, predio3d, contours] = await Promise.all([
+          checkedJSON('assets/data/project.json'),
+          checkedJSON('assets/data/predio-wgs84.geojson'),
+          checkedJSON('assets/data/predio-3d.json'),
+          checkedJSON('assets/data/contours-wgs84.geojson')
+        ]);
+        const flightBounds = toLeafletBounds(project.cloud.bounds_wgs84);
+        const orthoBounds = toLeafletBounds(project.orthomosaic_preview.bounds_wgs84);
+        const mdeBounds = toLeafletBounds(project.mde.raster.bounds_wgs84);
+        lmap = L.map('map2d', {
+          attributionControl:false, zoomControl:true, zoomSnap:0.25,
+          minZoom:14, maxZoom:23, maxBounds:flightBounds.pad(1.25), maxBoundsViscosity:0.35
+        });
+
+        const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom:23, maxNativeZoom:19, noWrap:true
+        });
+        const ortho = L.imageOverlay('assets/data/ortomosaico.webp', orthoBounds, { opacity:1, interactive:false });
+        const mde = L.imageOverlay('assets/data/mde-relief.webp', mdeBounds, { opacity:1, interactive:false });
+        ortho.addTo(lmap);
+
+        const curves = L.layerGroup();
+        const styles = {
+          index:{color:'#D8FF9E',weight:1.8,opacity:.96},
+          meter:{color:'#A7E84F',weight:1.05,opacity:.80},
+          half:{color:'#7BC142',weight:.62,opacity:.54}
+        };
+        L.geoJSON(contours, { style:f => styles[f.properties.tier] || styles.half }).addTo(curves);
+        const labelled = new Set();
+        contours.features.filter(f => f.properties.index).forEach(f => {
+          const elev = Number(f.properties.elev_m);
+          if (labelled.has(elev)) return;
+          labelled.add(elev);
+          const c = f.geometry.coordinates[Math.floor(f.geometry.coordinates.length / 2)];
+          L.marker([c[1],c[0]], { interactive:false, keyboard:false,
+            icon:L.divIcon({className:'contour-label',html:elev.toFixed(0)+' m',iconSize:[40,12]})
+          }).addTo(curves);
+        });
+        curves.addTo(lmap);
+
+        const boundary = L.layerGroup();
+        const boundaryShape = L.geoJSON(predio, {
+          style:{color:'#FF453A',weight:3.2,opacity:1,fill:true,fillColor:'#FF453A',fillOpacity:.055}
+        }).addTo(boundary);
+        const props = predio.features[0].properties;
+        boundaryShape.bindPopup(
+          '<b>Predio Max · T-101</b><br>' +
+          'Superficie declarada: 4,015.88 m²<br>Perímetro declarado: 257.00 m<br>' +
+          'WGS 84 / UTM zona 14N<br><small>Amarre absoluto INEGI pendiente.</small>'
+        );
+        predio3d.vertices.forEach(v => {
+          const marker = L.circleMarker([v.wgs84[1],v.wgs84[0]], {
+            radius:5,weight:2,color:'#fff',fillColor:'#FF453A',fillOpacity:1
+          });
+          marker.bindTooltip(v.id, {permanent:true,direction:'top',offset:[0,-5]});
+          marker.bindPopup('<b>'+v.id+'</b><br>E '+v.utm[0].toLocaleString('es-MX',{minimumFractionDigits:2})+
+            ' m<br>N '+v.utm[1].toLocaleString('es-MX',{minimumFractionDigits:2})+
+            ' m<br>Z DTM '+v.utm[2].toFixed(2)+' m*');
+          marker.addTo(boundary);
+        });
+        const pBounds = boundaryShape.getBounds();
+        L.marker(pBounds.getCenter(), {interactive:false,keyboard:false,
+          icon:L.divIcon({className:'predio-label',html:'T-101 · 4,015.88 m²',iconSize:[132,18]})
+        }).addTo(boundary);
+        boundary.addTo(lmap);
+
+        L.control.scale({metric:true,imperial:false,position:'bottomleft',maxWidth:150}).addTo(lmap);
+        L.control.layers(
+          {'Ortomosaico Pix4D':ortho,'MDE · terreno':mde,'Satélite · Esri':sat},
+          {'Curvas 0.50 m':curves,'Límite de referencia T-101':boundary},
+          {collapsed:false,position:'topright'}
+        ).addTo(lmap);
+
+        const legend = L.control({position:'bottomright'});
+        legend.onAdd = () => {
+          const d = L.DomUtil.create('div','map-legend');
+          d.innerHTML =
+            '<h4>Max · Huasca V2</h4>'+
+            '<div class="row"><span class="sw line" style="border-color:#FF453A"></span>Predio T-101 · 4,015.88 m²</div>'+
+            '<div class="row"><span class="sw line" style="border-color:#D8FF9E"></span>Curva índice · 5 m</div>'+
+            '<div class="row"><span class="sw line" style="border-color:#7BC142"></span>Curvas reales · 0.50 m</div>'+
+            '<div class="row"><span class="sw box" style="background:linear-gradient(90deg,#19494b,#6f9154,#c2855b)"></span>MDE · DTM Pix4D</div>'+
+            '<div class="ficha"><b>Datos de origen</b><br>Vuelo 05 jul 2026 · GSD 1.76 cm<br>'+project.cloud.point_count.toLocaleString('es-MX')+' puntos · EPSG:32614<br>DTM 8.787 cm/celda · alturas constShift*<br><span style="color:#F7B84B">*Amarre INEGI y cotas ortométricas pendientes.</span></div>';
+          L.DomEvent.disableClickPropagation(d);
+          return d;
+        };
+        legend.addTo(lmap);
+        lmap.fitBounds(pBounds.pad(.42));
+      } catch (e) {
+        mapReady = false;
+        console.error('Mapa técnico:', e);
+        map2d.innerHTML = '<div style="color:#ddd;font:13px var(--font-tech);display:grid;place-items:center;height:100%;padding:24px;text-align:center">No se pudo cargar la vista de mapa.<br>Revisa que el visor se abrió mediante el servidor incluido.</div>';
+      }
+    }
+
+    async function setTerrain(show) {
+      if (!show && typeof window._dmSetTerrainMode !== 'function') return;
+      for (let i=0; i<100 && typeof window._dmSetTerrainMode !== 'function'; i++) {
+        await new Promise(r => setTimeout(r,100));
+      }
+      if (window._dmSetTerrainMode) await window._dmSetTerrainMode(show);
+    }
+    async function setView(v) {
+      vm.querySelectorAll('button').forEach(b => b.classList.toggle('active',b.dataset.view===v));
+      const isMap = v === 'map', isTerrain = v === 'terrain';
+      document.body.classList.toggle('alt-view',isMap);
+      map2d.hidden = !isMap;
+      await setTerrain(isTerrain);
+      if (isMap) {
+        await ensureMap();
+        setTimeout(() => { if (lmap) lmap.invalidateSize(); },120);
+      }
+    }
+    vm.querySelectorAll('button').forEach(b => b.addEventListener('click',() => setView(b.dataset.view)));
+  })();
+  </script>
+</body>
+</html>
