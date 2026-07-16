@@ -1,0 +1,360 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-16T15:39:19Z",
+  "purpose": "Client and portfolio presentation crop; analytical source products remain unchanged.",
+  "source_frame": {
+    "path": "F:\\Max\\01_Huasca\\Planos T.1.01.pdf",
+    "page": 1,
+    "frame": "photographic map frame",
+    "sha256": "b3d7274ad8eed64e2d99114c606b6878d2e1987e368c51a8eb2a38dbbe482fdb"
+  },
+  "registration": {
+    "method": "T.1.01 photographic frame registered to V2 orthomosaic; same visual parcel alignment used by viewer.",
+    "relative_affine_rms_m": {
+      "east": 0.0166,
+      "north": 0.0063
+    },
+    "absolute_visual_uncertainty_m": 0.5
+  },
+  "crop": {
+    "crs": "EPSG:32614",
+    "bounds_utm": [
+      543073.8899,
+      2234632.5701,
+      543174.1128,
+      2234737.0726
+    ],
+    "ring_utm": [
+      [
+        543073.889926,
+        2234737.07069
+      ],
+      [
+        543174.112556,
+        2234737.07257
+      ],
+      [
+        543174.112785,
+        2234632.572007
+      ],
+      [
+        543073.890155,
+        2234632.570126
+      ],
+      [
+        543073.889926,
+        2234737.07069
+      ]
+    ],
+    "bounds_wgs84": [
+      -98.587680841,
+      20.208722209,
+      -98.586718996,
+      20.209668772
+    ],
+    "ring_wgs84": [
+      [
+        -98.5876783537,
+        20.2096687551
+      ],
+      [
+        -98.5867189986,
+        20.209666518
+      ],
+      [
+        -98.5867214889,
+        20.208722226
+      ],
+      [
+        -98.5876808383,
+        20.208724463
+      ],
+      [
+        -98.5876783537,
+        20.2096687551
+      ]
+    ],
+    "dimensions_m": {
+      "width": 100.2229,
+      "height": 104.5025
+    },
+    "visible_area_m2": 10473.5436,
+    "visible_area_ha": 1.047354,
+    "parcel_margins_m": {
+      "west": 18.6701,
+      "east": 16.2228,
+      "south": 13.1999,
+      "north": 6.2226
+    },
+    "clip_z_range_m": [
+      2084,
+      2169
+    ],
+    "potree_local_bounds": [
+      129.5796,
+      103.0595,
+      229.8025,
+      207.562
+    ]
+  },
+  "elevation": {
+    "point_cloud": {
+      "min": 2125.068,
+      "max": 2166.292,
+      "percentiles": {
+        "p1": 2133.017,
+        "p2": 2133.283,
+        "p50": 2138.024,
+        "p98": 2155.174,
+        "p99": 2156.775
+      },
+      "display_range_p1_p99_m": [
+        2133,
+        2157
+      ],
+      "method": "Exact points inside the T.1.01 presentation frame; P1-P99 only controls color stretch."
+    },
+    "dtm": {
+      "min": 2132.353271,
+      "max": 2143.44751,
+      "percentiles": {
+        "p1": 2132.928467,
+        "p2": 2133.062256,
+        "p50": 2136.579102,
+        "p98": 2142.368164,
+        "p99": 2142.59082
+      },
+      "display_range_p1_p99_m": [
+        2133,
+        2143
+      ],
+      "method": "All valid DTM cells inside the presentation crop; P1-P99 only controls color stretch."
+    },
+    "palette": "Potree TURBO / six-stop web equivalent",
+    "palette_stops": [
+      {
+        "position": 0.0,
+        "rgb": [
+          48,
+          18,
+          59
+        ]
+      },
+      {
+        "position": 0.2,
+        "rgb": [
+          66,
+          148,
+          255
+        ]
+      },
+      {
+        "position": 0.4,
+        "rgb": [
+          50,
+          242,
+          152
+        ]
+      },
+      {
+        "position": 0.6,
+        "rgb": [
+          205,
+          236,
+          52
+        ]
+      },
+      {
+        "position": 0.8,
+        "rgb": [
+          251,
+          126,
+          33
+        ]
+      },
+      {
+        "position": 1.0,
+        "rgb": [
+          169,
+          22,
+          1
+        ]
+      }
+    ]
+  },
+  "coverage": {
+    "point_cloud": {
+      "point_count": 12035804,
+      "visible_area_m2": 10473.5436,
+      "mean_density_pts_m2": 1149.163,
+      "elevation_m": {
+        "min": 2125.068,
+        "max": 2166.292,
+        "percentiles": {
+          "p1": 2133.017,
+          "p2": 2133.283,
+          "p50": 2138.024,
+          "p98": 2155.174,
+          "p99": 2156.775
+        },
+        "display_range_p1_p99_m": [
+          2133,
+          2157
+        ],
+        "method": "Exact points inside the T.1.01 presentation frame; P1-P99 only controls color stretch."
+      },
+      "source_z_range_m": [
+        2086.380409,
+        2166.292376
+      ],
+      "coverage_grid": {
+        "step_m": 2.0,
+        "columns": 51,
+        "rows": 53,
+        "occupied_cells": 2703,
+        "empty_cells": 0
+      }
+    },
+    "orthomosaic_valid_alpha_percent": 100.0,
+    "dtm_valid_percent": 100.0
+  },
+  "assets": {
+    "orthomosaic": {
+      "file": "ortomosaico-presentacion.webp",
+      "width": 2209,
+      "height": 2304,
+      "bounds_utm": [
+        543073.8899,
+        2234632.5701,
+        543174.1128,
+        2234737.0726
+      ],
+      "bounds_wgs84": [
+        -98.587680841,
+        20.208722209,
+        -98.586718996,
+        20.209668772
+      ],
+      "preview_resolution_m": [
+        0.04537,
+        0.045357
+      ],
+      "valid_alpha_percent": 100.0,
+      "encoding": {
+        "format": "WebP RGBA",
+        "quality": 88,
+        "alpha_preserved": true
+      }
+    },
+    "mde_preview": {
+      "file": "mde-relief-presentacion.webp",
+      "width": 1141,
+      "height": 1189,
+      "bounds_utm": [
+        543073.8899,
+        2234632.5701,
+        543174.1128,
+        2234737.0726
+      ],
+      "bounds_wgs84": [
+        -98.587680841,
+        20.208722209,
+        -98.586718996,
+        20.209668772
+      ],
+      "stretch": {
+        "method": "crop P1-P99",
+        "min_m": 2133.0,
+        "max_m": 2143.0
+      },
+      "hillshade_display": {
+        "azimuth_deg": 315,
+        "altitude_deg": 45
+      },
+      "valid_percent": 100.0,
+      "palette": [
+        {
+          "position": 0.0,
+          "rgb": [
+            48,
+            18,
+            59
+          ]
+        },
+        {
+          "position": 0.2,
+          "rgb": [
+            66,
+            148,
+            255
+          ]
+        },
+        {
+          "position": 0.4,
+          "rgb": [
+            50,
+            242,
+            152
+          ]
+        },
+        {
+          "position": 0.6,
+          "rgb": [
+            205,
+            236,
+            52
+          ]
+        },
+        {
+          "position": 0.8,
+          "rgb": [
+            251,
+            126,
+            33
+          ]
+        },
+        {
+          "position": 1.0,
+          "rgb": [
+            169,
+            22,
+            1
+          ]
+        }
+      ]
+    },
+    "mde_mesh": {
+      "file": "mde-mesh-presentacion.json",
+      "step_m": 2.0,
+      "grid_columns": 50,
+      "grid_rows": 52,
+      "vertex_count": 2600,
+      "triangle_count": 4998,
+      "elevation_range_m": [
+        2132.535851,
+        2143.141353
+      ]
+    },
+    "contours": {
+      "files": [
+        "contours-3d-presentacion.json",
+        "contours-wgs84-presentacion.geojson"
+      ],
+      "source_polylines": 39,
+      "clipped_polylines": 27,
+      "vertices": 1096,
+      "elevation_range_m": [
+        2133.0,
+        2143.0
+      ],
+      "interval_m": 0.5
+    }
+  },
+  "qa": {
+    "crop_inside_orthomosaic_with_full_alpha": true,
+    "crop_inside_dtm_with_full_coverage": true,
+    "point_cloud_has_no_empty_2m_cells": true,
+    "parcel_has_context_margin_on_all_sides": true,
+    "derived_assets_only": true
+  }
+}

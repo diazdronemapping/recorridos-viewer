@@ -180,7 +180,7 @@
     #mde-legend .unit { color: var(--lime-hi); letter-spacing: 0; text-transform: none; }
     #mde-legend .bar {
       height: 12px; margin: 7px 0 4px; border-radius: 3px;
-      background: linear-gradient(90deg,#2b3f73,#3a78a8,#4fa98e,#98c76b,#e5d86a,#db824c,#9c3f3b);
+      background: linear-gradient(90deg,#30123B 0%,#4294FF 20%,#32F298 40%,#CDEC34 60%,#FB7E21 80%,#A91601 100%);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
     }
     #mde-legend .range { color: rgba(255,255,255,.82); font-size: 10px; }
@@ -377,29 +377,6 @@
     #layers .lp-act { border-color: rgba(123,193,66,0.5); color: #cde8a8; }
     #layers .lp-act.ghost { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.6); }
 
-    /* Aviso permanente del ajuste visual: evita confundirlo con un amarre topográfico. */
-    #alignment-banner {
-      position: absolute; inset: 0 0 auto 0; min-height: 32px; z-index: 70;
-      display: flex; align-items: center; justify-content: center; gap: 9px;
-      padding: 5px 12px; box-sizing: border-box;
-      color: #FFE4A3; background: rgba(60,39,5,.94);
-      border-bottom: 1px solid rgba(247,184,75,.52);
-      font: 10px/1.25 'Space Grotesk', monospace, sans-serif;
-      letter-spacing: .035em; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    }
-    #alignment-banner .dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #F7B84B; box-shadow: 0 0 0 3px rgba(247,184,75,.15); }
-    #alignment-banner strong { color: #FFF2CE; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
-    #alignment-banner a { color: #FFF7E4; border-bottom: 1px solid currentColor; text-decoration: none; white-space: nowrap; }
-    #alignment-banner.official { color: #D0EAB7; background: rgba(15,36,17,.94); border-color: rgba(123,193,66,.45); }
-    #alignment-banner.official .dot { background: #7BC142; box-shadow: 0 0 0 3px rgba(123,193,66,.15); }
-    #alignment-banner.official strong { color: #E8F7DB; }
-
-    /* El banner reserva su propia franja sin tapar los controles existentes. */
-    #measure-toolbar { top: 44px; }
-    #color-toggle { top: 44px; }
-    #density-control { top: 88px; }
-    #layers { top: 150px; }
-
     /* Selector de vista: Puntos / Realista / Mapa */
     #view-mode {
       position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 45;
@@ -425,9 +402,6 @@
     /* el overlay-label se mantiene como marca; en móvil el selector sube si choca */
     @media (max-width: 600px) {
       #view-mode { bottom: 10px; }
-      #alignment-banner { justify-content: flex-start; gap: 6px; padding-inline: 9px; font-size: 9px; }
-      #alignment-banner strong { font-size: 9px; }
-      #alignment-banner .alignment-detail { display: none; }
     }
 
     /* ── Vista Mapa · cromo GIS (leyenda · etiquetas de cota · deslinde) ── */
@@ -507,17 +481,14 @@
       position: relative;
       height: 14px;
       border-radius: 3px;
-      /* Rampa SPECTRAL · ColorBrewer Spectral-9 (idéntica al default de Potree) */
+      /* TURBO, sincronizada con el gradiente de Potree y el rango real recortado. */
       background: linear-gradient(to right,
-        #5e4fa2 0%,
-        #3288bd 12.5%,
-        #66c2a5 25%,
-        #abdda4 37.5%,
-        #e6f598 50%,
-        #fee08b 62.5%,
-        #fdae61 75%,
-        #f46d43 87.5%,
-        #d53e4f 100%);
+        #30123B 0%,
+        #4294FF 20%,
+        #32F298 40%,
+        #CDEC34 60%,
+        #FB7E21 80%,
+        #A91601 100%);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
     }
     #elevation-legend .bar-wrap .tick {
@@ -723,7 +694,7 @@
     @media (max-width: 600px) {
       /* Toolbar de medición · solo íconos · una sola fila · arriba-izquierda */
       #measure-toolbar {
-        top: 42px; left: 10px; right: auto;
+        top: 10px; left: 10px; right: auto;
         flex-wrap: nowrap;
         gap: 5px;
         max-width: calc(100% - 190px);   /* deja sitio a la densidad a la derecha */
@@ -737,7 +708,7 @@
 
       /* Densidad · arriba-derecha · compacta */
       #density-control {
-        top: 42px; right: 10px; left: auto;
+        top: 10px; right: 10px; left: auto;
         width: 165px;
         padding: 7px 10px;
       }
@@ -745,8 +716,8 @@
       #density-control .value { min-width: 28px; font-size: 10px; }
 
       /* Selector de color · 2ª fila · arriba-izquierda (no comparte fila con la toolbar) */
-      #color-toggle { top: 96px; right: auto; left: 10px; }
-      #layers { top: 150px; }
+      #color-toggle { top: 64px; right: auto; left: 10px; }
+      #layers { top: 118px; }
 
       /* Leyenda de elevación · barra full-width abajo */
       #elevation-legend {
@@ -772,14 +743,6 @@
   </style>
 </head>
 <body>
-
-  <div id="alignment-banner" role="status" aria-live="polite">
-    <span class="dot" aria-hidden="true"></span>
-    <strong id="alignment-title">Ajuste visual provisional</strong>
-    <span id="alignment-summary">ΔE −8.52 m · ΔN +5.13 m</span>
-    <span class="alignment-detail">· coordenadas oficiales intactas</span>
-    <a id="alignment-toggle" href="?alignment=official">Ver posición oficial</a>
-  </div>
 
   <!-- Loading overlay -->
   <div id="loading-overlay">
@@ -835,7 +798,7 @@
       <div class="lp-sec">
         <span class="lp-lbl">Capas</span>
         <div class="lp-chips">
-          <button data-layer="boundary" class="lp-chip active">Límite T-101 · provisional</button>
+          <button data-layer="boundary" class="lp-chip active">Límite T-101</button>
           <button data-layer="contours" class="lp-chip active">Curvas de nivel · 0.50 m</button>
           <button data-layer="terrain" class="lp-chip">MDE · terreno 3D</button>
         </div>
@@ -844,7 +807,7 @@
         <span class="lp-lbl">Encuadre</span>
         <div class="lp-actions">
           <button data-camera="property" class="lp-act">Enfocar predio</button>
-          <button data-camera="flight" class="lp-act ghost">Área procesada</button>
+          <button data-camera="flight" class="lp-act ghost">Área visible</button>
         </div>
       </div>
     </div>
@@ -856,7 +819,7 @@
       <span>Elevación</span>
       <span class="unit">m · referencia Pix4D*</span>
     </div>
-    <div class="bar-wrap" role="img" aria-label="Rampa de elevación SPECTRAL">
+    <div class="bar-wrap" role="img" aria-label="Rampa de elevación TURBO">
       <span class="tick" style="left:0%"></span>
       <span class="tick" style="left:25%"></span>
       <span class="tick" style="left:50%"></span>
@@ -904,12 +867,11 @@
     <dl>
       <div><dt>Nube</dt><dd>25,131,914 puntos</dd></div>
       <div><dt>GSD medio</dt><dd>1.76 cm</dd></div>
-      <div><dt>Área procesada</dt><dd>6.5806 ha</dd></div>
+      <div><dt>Área visible</dt><dd>1.0474 ha</dd></div>
       <div><dt>Predio T-101</dt><dd>4,015.88 m² · 257.00 m</dd></div>
       <div><dt>Sistema</dt><dd>WGS 84 / UTM 14N · EPSG:32614</dd></div>
     </dl>
-    <p class="precision-note"><b>Referencia actual.</b> RTK fijo relativo; el amarre absoluto a INEGI IHID y la conversión a cotas ortométricas continúan pendientes.</p>
-    <p id="alignment-note" class="precision-note"><b>Límite rojo provisional.</b> Se trasladó visualmente ΔE −8.52 m y ΔN +5.13 m para hacer coincidir V1 con la esquina de la barda y la edificación del plano T.1.01. Las coordenadas oficiales no se modificaron.</p>
+    <p class="precision-note"><b>Encuadre de presentación.</b> El límite rojo reproduce el trazo T-101 sobre el ortomosaico; el visor conserva contexto alrededor del predio y oculta las orillas degradadas del procesamiento.</p>
     <p class="source-note">Fuente: Pix4D Huasca_MAX_V2 · vuelo 05 jul 2026 · plano T-101.</p>
   </aside>
 
@@ -943,56 +905,51 @@
   <script src="assets/potree/build/potree/potree.js"></script>
 
   <script>
-    /* Una sola fuente para el ajuste de render; ?alignment=official lo desactiva. */
+    /* Configuración interna de presentación: el visor público no expone modos
+       alternos ni parámetros técnicos que distraigan al cliente. */
     (function () {
-      const requestedOfficial = new URLSearchParams(location.search).get('alignment') === 'official';
       const fallback = {
-        active:false, requested_mode:'official', dx:0, dy:0, dz:0,
-        translation_m:{east:0,north:0,vertical:0}, status:'official_fallback'
+        active:true, dx:-8.52, dy:5.13, dz:0,
+        translation_m:{east:-8.52,north:5.13,vertical:0}, status:'presentation_fallback'
       };
       window._dmAlignmentPromise = fetch('assets/data/viewer-alignment.json', {cache:'no-store'})
         .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
         .then(config => {
           const t = config.translation_m || {};
-          const active = Boolean(config.enabled) && !requestedOfficial;
           const state = Object.assign({}, config, {
-            active,
-            requested_mode: active ? 'provisional' : 'official',
-            dx: active ? Number(t.east || 0) : 0,
-            dy: active ? Number(t.north || 0) : 0,
-            dz: active ? Number(t.vertical || 0) : 0,
+            active: true,
+            requested_mode: 'presentation',
+            dx: Number(t.east || 0),
+            dy: Number(t.north || 0),
+            dz: Number(t.vertical || 0),
             configured_translation_m: {east:Number(t.east || 0), north:Number(t.north || 0), vertical:Number(t.vertical || 0)}
           });
           window._dmAlignment = state;
-
-          const banner = document.getElementById('alignment-banner');
-          const title = document.getElementById('alignment-title');
-          const summary = document.getElementById('alignment-summary');
-          const toggle = document.getElementById('alignment-toggle');
-          const note = document.getElementById('alignment-note');
-          const url = new URL(location.href);
-          if (active) {
-            banner.classList.remove('official');
-            title.textContent = 'Ajuste visual provisional';
-            summary.textContent = 'ΔE −8.52 m · ΔN +5.13 m';
-            url.searchParams.set('alignment', 'official');
-            toggle.textContent = 'Ver posición oficial';
-            note.innerHTML = '<b>Límite rojo provisional.</b> Se trasladó visualmente ΔE −8.52 m y ΔN +5.13 m para hacer coincidir V1 con la esquina de la barda y la edificación del plano T.1.01. Las coordenadas oficiales no se modificaron.';
-          } else {
-            banner.classList.add('official');
-            title.textContent = 'Posición oficial';
-            summary.textContent = 'sin ajuste visual';
-            url.searchParams.delete('alignment');
-            toggle.textContent = 'Ver ajuste provisional';
-            note.innerHTML = '<b>Vista oficial.</b> El límite rojo usa las coordenadas originales del plano, sin la traslación visual provisional.';
-          }
-          toggle.href = url.href;
           return state;
         })
         .catch(error => {
-          console.warn('Ajuste visual no disponible; se conserva la posición oficial:', error);
+          console.warn('Configuración del límite no disponible; se usa el respaldo validado:', error);
           window._dmAlignment = fallback;
           return fallback;
+        });
+      window._dmPresentationPromise = fetch('assets/data/viewer-presentation.json', {cache:'no-store'})
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(config => { window._dmPresentation = config; return config; })
+        .catch(error => {
+          console.warn('Encuadre de presentación no disponible; se usa el respaldo validado:', error);
+          const config = {
+            crop:{
+              bounds_utm:[543073.8899,2234632.5701,543174.1128,2234737.0726],
+              bounds_wgs84:[-98.587680841,20.208722209,-98.586718996,20.209668772],
+              clip_z_range_m:[2084,2169], visible_area_ha:1.047354
+            },
+            elevation:{
+              point_cloud:{display_range_p1_p99_m:[2133,2157]},
+              dtm:{display_range_p1_p99_m:[2133,2143]}
+            }
+          };
+          window._dmPresentation = config;
+          return config;
         });
     })();
   </script>
@@ -1094,6 +1051,30 @@
 
       if (isTouch) setupMapTouchNav(viewer, function () { return measuringActive; });
 
+      // ── Encuadre común de presentación ─────────────────────────────────
+      // La nube original permanece intacta; un volumen invisible limita el render
+      // al mismo marco T.1.01 usado por ortomosaico, curvas y MDE derivados.
+      const systemCropReady = window._dmPresentationPromise.then(config => {
+        const b = config.crop.bounds_utm;
+        const z = config.crop.clip_z_range_m;
+        const crop = new Potree.BoxVolume();
+        crop.name = 'encuadre-presentacion-t101';
+        crop.position.set((b[0]+b[2])/2, (b[1]+b[3])/2, (z[0]+z[1])/2);
+        crop.scale.set(b[2]-b[0], b[3]-b[1], z[1]-z[0]);
+        crop.clip = true;
+        crop.visible = false;
+        crop.userData.dmSystemCrop = true;
+        crop.userData.boundsUTM = b.slice();
+        crop.updateMatrixWorld(true);
+        viewer.scene.addVolume(crop);
+        viewer.setClipTask(Potree.ClipTask.SHOW_INSIDE);
+        viewer.setClipMethod(Potree.ClipMethod.INSIDE_ANY);
+        const state = {config, volume:crop, bounds:b.slice(), zRange:z.slice()};
+        window._dmCropState = state;
+        return state;
+      });
+      window._dmSystemCropReady = systemCropReady;
+
       // ── Load cloud ───────────────────────────────────────────────────────
       Potree.loadPointCloud(
         'assets/cloud/max-huasca-v2/metadata.json',
@@ -1108,7 +1089,12 @@
 
           // RGB por default (validado · la nube tiene color real)
           material.activeAttributeName = 'rgba';
-          material.elevationRange = [2086.380, 2166.292];
+          material.elevationRange = [2133, 2157];
+          material.gradient = Potree.Gradients.TURBO;
+          systemCropReady.then(state => {
+            material.elevationRange = state.config.elevation.point_cloud.display_range_p1_p99_m.slice();
+            material.gradient = Potree.Gradients.TURBO;
+          });
 
           // Brillo del coloreado RGB (Diego: la nube se veía algo oscura · 2026-05-28).
           // rgbGamma <1 levanta midtones (natural) · rgbBrightness suma un lift leve.
@@ -1149,7 +1135,7 @@
           try {
             const CAMERA = {
               property: { target:[543132.732, 2234679.436, 2136.418], distance:112, altitude:105, azimuth:Math.PI*1.25 },
-              flight:   { target:[543142.562, 2234724.624, 2138.000], distance:315, altitude:300, azimuth:Math.PI*1.16 }
+              flight:   { target:[543124.001, 2234684.821, 2138.000], distance:158, altitude:148, azimuth:Math.PI*1.20 }
             };
             function applyCamera(name) {
               const p = CAMERA[name] || CAMERA.property;
@@ -1410,7 +1396,11 @@
           function clearMeasurements() {
             viewer.scene.measurements.slice().forEach(m => viewer.scene.removeMeasurement(m));
             try { viewer.scene.profiles.slice().forEach(p => viewer.scene.removeProfile(p)); } catch (e) {}
-            try { viewer.scene.volumes.slice().forEach(v => viewer.scene.removeVolume(v)); } catch (e) {}
+            try {
+              viewer.scene.volumes.slice()
+                .filter(v => !(v.userData && v.userData.dmSystemCrop))
+                .forEach(v => viewer.scene.removeVolume(v));
+            } catch (e) {}
             toolBtns.forEach(b => b.classList.remove('active'));
             closeAllCards();
             if (typeof clearExtraCards === 'function') clearExtraCards();
@@ -1446,8 +1436,8 @@
                 if (Array.isArray(r) && r.length === 2) { lo = r[0]; hi = r[1]; }
               } catch (e) { /* noop */ }
               if (lo == null || hi == null) {
-                lo = 2086.380;
-                hi = 2166.292;
+                lo = 2133;
+                hi = 2157;
               }
 
               const t = (frac) => Math.round(lo + (hi - lo) * frac);
@@ -1631,7 +1621,7 @@
           }
           async function ensureContours() {
             if (contoursReady) return;
-            const data = await fetch('assets/data/contours-3d.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+            const data = await fetch('assets/data/contours-3d-presentacion.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
             contourGroup = buildContours(data);
             contourGroup.visible = false;
             techOverlayScene.add(contourGroup);
@@ -1703,7 +1693,7 @@
             techOverlayScene.add(boundaryLine);
             boundaryLabels = buildBoundaryLabels(data, alignment);
             boundaryLabels.forEach(s => { s.visible = false; techOverlayScene.add(s); });
-            boundaryChip.textContent = alignment.active ? 'Límite T-101 · provisional' : 'Límite T-101 · oficial';
+            boundaryChip.textContent = 'Límite T-101';
             window._dmBoundaryState = {data, alignment, line:boundaryLine, labels:boundaryLabels};
             boundaryReady = true;
           }
@@ -1716,7 +1706,10 @@
 
           async function ensureTerrain() {
             if (terrainReady) return;
-            const data = await fetch('assets/data/mde-mesh.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+            const [data, presentation] = await Promise.all([
+              fetch('assets/data/mde-mesh-presentacion.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+              window._dmPresentationPromise
+            ]);
             const geom = new T.GeomCls();
             geom.setAttribute('position', new T.BufferAttrCls(new Float32Array(data.positions_xyz), 3));
             const colors = new Float32Array(data.colors_rgb.length);
@@ -1729,8 +1722,9 @@
             terrainMesh.visible = false;
             terrainMesh.name = 'mde-dtm-pix4d';
             viewer.scene.scene.add(terrainMesh);
-            document.getElementById('mde-min').textContent = '2,122.54 m';
-            document.getElementById('mde-max').textContent = '2,159.89 m';
+            const mdeRange = presentation.elevation.dtm.display_range_p1_p99_m;
+            document.getElementById('mde-min').textContent = mdeRange[0].toLocaleString('es-MX') + ' m';
+            document.getElementById('mde-max').textContent = mdeRange[1].toLocaleString('es-MX') + ' m';
             terrainReady = true;
           }
           async function setTerrainMode(show) {
@@ -1741,7 +1735,7 @@
             document.body.classList.toggle('terrain-view', show);
             terrainChip.classList.toggle('active', show);
             document.getElementById('overlay-label').textContent = show
-              ? 'MDE · DTM Pix4D · malla 2 m · alturas constShift · amarre INEGI pendiente'
+              ? 'MDE · DTM Pix4D · recorte T-101 · malla 2 m · elevaciones reales'
               : 'Max · Huasca V2 · 25,131,914 puntos · UTM 14N · Drone Mapping';
           }
           window._dmSetTerrainMode = setTerrainMode;
@@ -1841,7 +1835,7 @@
             let profile;
             try { profile = viewer.profileTool.startInsertion({ width: 0 }); }
             catch (e) { console.warn('profileTool falló', e); return; }
-            try { profile.setWidth(4); } catch (e) {}
+            try { profile.setWidth(0); } catch (e) {}
             const el = addExtraCard();
             el.querySelector('.mi-close').addEventListener('click', () => { try { viewer.scene.removeProfile(profile); } catch (e) {} removeExtraCard(el); });
             const refresh = () => renderProfileChart(el, profile.points || []);
@@ -1961,35 +1955,34 @@
       if (mapReady) return;
       mapReady = true;
       try {
-        const [project, predio, predio3d, contours, alignment] = await Promise.all([
+        const [project, predio, predio3d, contours, alignment, presentation] = await Promise.all([
           checkedJSON('assets/data/project.json'),
           checkedJSON('assets/data/predio-wgs84.geojson'),
           checkedJSON('assets/data/predio-3d.json'),
-          checkedJSON('assets/data/contours-wgs84.geojson'),
-          window._dmAlignmentPromise
+          checkedJSON('assets/data/contours-wgs84-presentacion.geojson'),
+          window._dmAlignmentPromise,
+          window._dmPresentationPromise
         ]);
         const alignedVertices = predio3d.vertices.map(v => {
           const utm = [v.utm[0] + alignment.dx, v.utm[1] + alignment.dy, v.utm[2] + alignment.dz];
           const wgs84 = utmToLonLat([utm[0], utm[1]]);
           return {id:v.id, official_utm:v.utm.slice(), utm, wgs84};
         });
-        const renderedPredio = alignment.active ? JSON.parse(JSON.stringify(predio)) : predio;
-        if (alignment.active && renderedPredio.features[0] && renderedPredio.features[0].geometry.type === 'Polygon') {
+        const renderedPredio = JSON.parse(JSON.stringify(predio));
+        if (renderedPredio.features[0] && renderedPredio.features[0].geometry.type === 'Polygon') {
           renderedPredio.features[0].geometry.coordinates[0] = alignedVertices.map(v => v.wgs84).concat([alignedVertices[0].wgs84]);
         }
-        const flightBounds = toLeafletBounds(project.cloud.bounds_wgs84);
-        const orthoBounds = toLeafletBounds(project.orthomosaic_preview.bounds_wgs84);
-        const mdeBounds = toLeafletBounds(project.mde.raster.bounds_wgs84);
+        const frameBounds = toLeafletBounds(presentation.crop.bounds_wgs84);
         lmap = L.map('map2d', {
           attributionControl:false, zoomControl:true, zoomSnap:0.25,
-          minZoom:14, maxZoom:23, maxBounds:flightBounds.pad(1.25), maxBoundsViscosity:0.35
+          minZoom:16, maxZoom:23, maxBounds:frameBounds.pad(.03), maxBoundsViscosity:1
         });
 
         const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
           maxZoom:23, maxNativeZoom:19, noWrap:true
         });
-        const ortho = L.imageOverlay('assets/data/ortomosaico.webp', orthoBounds, { opacity:1, interactive:false });
-        const mde = L.imageOverlay('assets/data/mde-relief.webp', mdeBounds, { opacity:1, interactive:false });
+        const ortho = L.imageOverlay('assets/data/ortomosaico-presentacion.webp', frameBounds, { opacity:1, interactive:false });
+        const mde = L.imageOverlay('assets/data/mde-relief-presentacion.webp', frameBounds, { opacity:1, interactive:false });
         ortho.addTo(lmap);
 
         const curves = L.layerGroup();
@@ -2019,20 +2012,14 @@
         boundaryShape.bindPopup(
           '<b>Predio Max · T-101</b><br>' +
           'Superficie declarada: 4,015.88 m²<br>Perímetro declarado: 257.00 m<br>' +
-          'WGS 84 / UTM zona 14N<br><small>' + (alignment.active
-            ? 'Ajuste visual provisional ΔE −8.52 m · ΔN +5.13 m; coordenadas oficiales intactas.'
-            : 'Posición oficial sin ajuste visual.') + '</small>'
+          'WGS 84 / UTM zona 14N<br><small>Trazo T-101 sobre el ortomosaico del proyecto.</small>'
         );
         alignedVertices.forEach(v => {
           const marker = L.circleMarker([v.wgs84[1],v.wgs84[0]], {
             radius:5,weight:2,color:'#fff',fillColor:'#FF453A',fillOpacity:1
           });
           marker.bindTooltip(v.id, {permanent:true,direction:'top',offset:[0,-5]});
-          marker.bindPopup('<b>'+v.id+'</b><br>Oficial: E '+v.official_utm[0].toLocaleString('es-MX',{minimumFractionDigits:2})+
-            ' m · N '+v.official_utm[1].toLocaleString('es-MX',{minimumFractionDigits:2})+' m'+
-            (alignment.active ? '<br><small>Marca visual provisional: E '+v.utm[0].toLocaleString('es-MX',{minimumFractionDigits:2})+
-              ' m · N '+v.utm[1].toLocaleString('es-MX',{minimumFractionDigits:2})+' m</small>' : '')+
-            '<br>Z DTM '+v.official_utm[2].toFixed(2)+' m*');
+          marker.bindPopup('<b>'+v.id+'</b><br>Vértice del plano T-101<br>Z DTM '+v.official_utm[2].toFixed(2)+' m');
           marker.addTo(boundary);
         });
         const pBounds = boundaryShape.getBounds();
@@ -2044,7 +2031,7 @@
         L.control.scale({metric:true,imperial:false,position:'bottomleft',maxWidth:150}).addTo(lmap);
         L.control.layers(
           {'Ortomosaico Pix4D':ortho,'MDE · terreno':mde,'Satélite · Esri':sat},
-          {'Curvas 0.50 m':curves,[alignment.active ? 'Límite T-101 · provisional' : 'Límite T-101 · oficial']:boundary},
+          {'Curvas 0.50 m':curves,'Límite T-101':boundary},
           {collapsed:false,position:'topright'}
         ).addTo(lmap);
 
@@ -2052,19 +2039,18 @@
         legend.onAdd = () => {
           const d = L.DomUtil.create('div','map-legend');
           d.innerHTML =
-            '<h4>Max · Huasca V2</h4>'+
-            '<div class="row"><span class="sw line" style="border-color:#FF453A"></span>Predio T-101 · 4,015.88 m²</div>'+
-            (alignment.active ? '<div class="row" style="color:#F7B84B"><span class="sw box" style="background:#F7B84B"></span>Ajuste visual provisional</div>' : '')+
-            '<div class="row"><span class="sw line" style="border-color:#D8FF9E"></span>Curva índice · 5 m</div>'+
-            '<div class="row"><span class="sw line" style="border-color:#7BC142"></span>Curvas reales · 0.50 m</div>'+
-            '<div class="row"><span class="sw box" style="background:linear-gradient(90deg,#19494b,#6f9154,#c2855b)"></span>MDE · DTM Pix4D</div>'+
-            '<div class="ficha"><b>Datos de origen</b><br>Vuelo 05 jul 2026 · GSD 1.76 cm<br>'+project.cloud.point_count.toLocaleString('es-MX')+' puntos · EPSG:32614<br>DTM 8.787 cm/celda · alturas constShift*<br><span style="color:#F7B84B">*Amarre INEGI y cotas ortométricas pendientes.</span></div>';
+            '<h4>Max · Huasca V2</h4>'+ 
+            '<div class="row"><span class="sw line" style="border-color:#FF453A"></span>Predio T-101 · 4,015.88 m²</div>'+ 
+            '<div class="row"><span class="sw line" style="border-color:#D8FF9E"></span>Curva índice · 5 m</div>'+ 
+            '<div class="row"><span class="sw line" style="border-color:#7BC142"></span>Curvas reales · 0.50 m</div>'+ 
+            '<div class="row"><span class="sw box" style="background:linear-gradient(90deg,#30123B,#4294FF,#32F298,#CDEC34,#FB7E21,#A91601)"></span>MDE · DTM Pix4D</div>'+ 
+            '<div class="ficha"><b>Datos de origen</b><br>Vuelo 05 jul 2026 · GSD 1.76 cm<br>'+project.cloud.point_count.toLocaleString('es-MX')+' puntos · EPSG:32614<br>DTM 8.787 cm/celda · elevaciones Pix4D<br><span style="color:#A7E84F">Recorte T-101 · cobertura validada.</span></div>';
           L.DomEvent.disableClickPropagation(d);
           return d;
         };
         legend.addTo(lmap);
-        lmap.fitBounds(pBounds.pad(.42));
-        window._dmMapAlignmentState = {alignment, vertices:alignedVertices};
+        lmap.fitBounds(frameBounds, {padding:[18,18]});
+        window._dmMapAlignmentState = {alignment, presentation, vertices:alignedVertices, frameBounds};
       } catch (e) {
         mapReady = false;
         console.error('Mapa técnico:', e);
