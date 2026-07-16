@@ -20,7 +20,8 @@ self.addEventListener('activate', (event) => {
 });
 
 function chunkUrl(index) {
-  return `${OCTREE_URL.href}.${String(index).padStart(3, '0')}`;
+  const shared = new URL('/assets/cloud/terrain-case-01/octree.bin', self.registration.scope);
+  return `${shared.href}.${String(index).padStart(3, '0')}`;
 }
 
 function parseRange(value, total) {

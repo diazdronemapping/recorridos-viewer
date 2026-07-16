@@ -1,0 +1,155 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "Max Huasca",
+    "portalType": "consulta-cliente",
+    "locationLabel": "Huasca, Hidalgo",
+    "legalNotice": "Este portal organiza el expediente y facilita su consulta. El visor 3D es una herramienta visual y no sustituye los alcances ni las notas técnicas de los documentos firmados.",
+    "support": {
+      "whatsapp": "527757602869"
+    }
+  },
+  "statusLabels": {
+    "delivered": "Entregado",
+    "available": "Disponible",
+    "review": "En revisión",
+    "request": "Por solicitud"
+  },
+  "deliverables": [
+    {
+      "id": "plano-t101",
+      "title": "Plano topográfico T.1.01",
+      "summary": "Documento principal del levantamiento, organizado para consulta en seis páginas.",
+      "format": "PDF",
+      "category": "planos",
+      "status": "delivered",
+      "icon": "assets/icons/format-pdf.svg",
+      "href": "assets/files/Planos_T1-01_Max_Huasca.pdf",
+      "actionLabel": "Abrir PDF",
+      "preview": {
+        "kind": "pdf",
+        "src": "assets/files/Planos_T1-01_Max_Huasca_Web.pdf"
+      }
+    },
+    {
+      "id": "cuadro-rumbos",
+      "title": "Cuadro de rumbos",
+      "summary": "Síntesis vectorial de rumbos, distancias, superficie, perímetro y vértices del predio.",
+      "format": "PDF",
+      "category": "planos",
+      "status": "delivered",
+      "icon": "assets/icons/format-pdf.svg",
+      "href": "assets/files/Cuadro_de_Rumbos_Max_Huasca.pdf",
+      "actionLabel": "Abrir cuadro",
+      "preview": {
+        "kind": "pdf",
+        "src": "assets/files/Cuadro_de_Rumbos_Max_Huasca.pdf"
+      }
+    },
+    {
+      "id": "reporte-calidad",
+      "title": "Reporte de calidad del procesamiento",
+      "summary": "Resumen técnico de la reconstrucción fotogramétrica y sus indicadores de control.",
+      "format": "PDF",
+      "category": "reportes",
+      "status": "available",
+      "icon": "assets/icons/cloud-download.svg",
+      "href": "assets/files/Reporte_Calidad_Procesamiento_V2.pdf",
+      "actionLabel": "Abrir reporte",
+      "preview": {
+        "kind": "pdf",
+        "src": "assets/files/Reporte_Calidad_Procesamiento_V2.pdf"
+      }
+    },
+    {
+      "id": "curvas-pdf",
+      "title": "Curvas de nivel",
+      "summary": "Representación en PDF con equidistancia de 0.50 m para lectura y referencia visual.",
+      "format": "PDF",
+      "category": "superficie",
+      "status": "available",
+      "icon": "assets/icons/plano-curvas-nivel.svg",
+      "href": "assets/files/Curvas_Nivel_050m.pdf",
+      "actionLabel": "Abrir PDF",
+      "preview": {
+        "kind": "pdf",
+        "src": "assets/files/Curvas_Nivel_050m.pdf"
+      }
+    },
+    {
+      "id": "curvas-dxf",
+      "title": "Curvas de nivel editables",
+      "summary": "Archivo CAD de curvas de nivel para integración en un flujo técnico compatible.",
+      "format": "DXF",
+      "category": "superficie",
+      "status": "available",
+      "icon": "assets/icons/format-dxf.svg",
+      "href": "assets/files/Curvas_Nivel_050m.dxf",
+      "actionLabel": "Descargar DXF"
+    },
+    {
+      "id": "dtm-tif",
+      "title": "Modelo digital del terreno",
+      "summary": "Superficie ráster georreferenciada correspondiente al procesamiento técnico V2.",
+      "format": "TIF",
+      "category": "superficie",
+      "status": "available",
+      "icon": "assets/icons/dsm-mountain.svg",
+      "href": "assets/files/Modelo_Digital_Terreno_V2.tif",
+      "actionLabel": "Descargar TIF"
+    },
+    {
+      "id": "cotizacion-historica",
+      "title": "Cotización del proyecto",
+      "summary": "Copia histórica del alcance comercial acordado para mantener el expediente completo.",
+      "format": "PDF",
+      "category": "administrativo",
+      "status": "delivered",
+      "icon": "assets/icons/format-pdf.svg",
+      "href": "assets/files/Cotizacion_Max_Huasca_2026-06-15.pdf",
+      "actionLabel": "Abrir cotización",
+      "preview": {
+        "kind": "pdf",
+        "src": "assets/files/Cotizacion_Max_Huasca_2026-06-15.pdf"
+      }
+    },
+    {
+      "id": "nube-laz",
+      "title": "Nube de puntos clasificada",
+      "summary": "Archivo de trabajo de gran tamaño. Se prepara y comparte según el flujo técnico requerido.",
+      "format": "LAZ",
+      "category": "nube",
+      "status": "request",
+      "icon": "assets/icons/point-cloud.svg",
+      "requestMessage": "Hola, quisiera solicitar la nube de puntos LAZ del proyecto Max Huasca."
+    },
+    {
+      "id": "ortomosaico-geotiff",
+      "title": "Ortomosaico georreferenciado",
+      "summary": "Archivo GeoTIFF de trabajo. Se entrega bajo solicitud para evitar descargas innecesarias en celular.",
+      "format": "GeoTIFF",
+      "category": "ortomosaico",
+      "status": "request",
+      "icon": "assets/icons/format-geotiff.svg",
+      "requestMessage": "Hola, quisiera solicitar el ortomosaico GeoTIFF del proyecto Max Huasca."
+    },
+    {
+      "id": "modelo-3d",
+      "title": "Modelo tridimensional texturizado",
+      "summary": "Modelo de trabajo disponible en FBX u OBJ con sus texturas, preparado según el software de destino.",
+      "format": "FBX / OBJ",
+      "category": "nube",
+      "status": "request",
+      "icon": "assets/icons/point-cloud.svg",
+      "requestMessage": "Hola, quisiera solicitar el modelo 3D texturizado del proyecto Max Huasca."
+    }
+  ],
+  "planPages": [
+    { "number": "01", "title": "Portada y referencia general", "src": "assets/plan/page-01.webp" },
+    { "number": "02", "title": "Planta topográfica", "src": "assets/plan/page-02.webp" },
+    { "number": "03", "title": "Información de control", "src": "assets/plan/page-03.webp" },
+    { "number": "04", "title": "Detalle del levantamiento", "src": "assets/plan/page-04.webp" },
+    { "number": "05", "title": "Anotaciones y referencias", "src": "assets/plan/page-05.webp" },
+    { "number": "06", "title": "Cierre del juego de planos", "src": "assets/plan/page-06.webp" }
+  ]
+}

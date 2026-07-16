@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Plano topográfico — polígono del predio con curvas de nivel">
+  <g stroke-width="2">
+    <path d="M10 14 L28 8 L40 16 L36 34 L20 40 L8 30 Z"/>
+  </g>
+  <g stroke-width="1" stroke-opacity="0.6">
+    <path d="M14 18 C18 16 24 16 30 18 C34 20 36 24 34 28 C32 32 26 34 20 33 C14 32 12 28 14 24 C14 22 13 20 14 18 Z"/>
+    <path d="M17 22 C20 21 25 22 28 24 C30 26 30 28 28 29 C25 30 21 29 19 27 C17 26 16 24 17 22 Z"/>
+    <path d="M20 25 C22 24.5 25 25 26 26 C26 27 24 27.5 22 27 C20 26.5 19.5 26 20 25 Z"/>
+  </g>
+  <g stroke-width="1.6">
+    <line x1="38" y1="10" x2="38" y2="6"/>
+    <path d="M36 8 L38 5 L40 8"/>
+  </g>
+  <g stroke-width="0.6" fill="currentColor" stroke="none">
+    <text x="37" y="14" font-family="sans-serif" font-size="3.5" font-weight="700">N</text>
+  </g>
+</svg>

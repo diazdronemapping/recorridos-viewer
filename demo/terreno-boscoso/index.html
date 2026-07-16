@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0b0f0c">
+  <title>Demostración 3D · Terreno boscoso · Drone Mapping</title>
+  <link rel="stylesheet" href="/assets/potree/build/potree/potree.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="viewer" aria-label="Visor tridimensional anonimizado">
+    <div id="potree_render_area"></div>
+
+    <div class="loader" id="loader" role="status" aria-live="polite">
+      <span class="loader__mark" aria-hidden="true"></span>
+      <strong>Preparando experiencia 3D</strong>
+      <span id="loaderText">Conectando con la nube de puntos…</span>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__signal" aria-hidden="true"></span>
+        <span><strong>DRONE MAPPING</strong><small>DEMOSTRACIÓN TÉCNICA</small></span>
+      </div>
+      <span class="privacy-chip">Coordenadas locales</span>
+    </header>
+
+    <nav class="mode-switch" aria-label="Representación de la nube">
+      <button type="button" class="is-active" data-color="rgba">RGB</button>
+      <button type="button" data-color="elevation">Relieve</button>
+      <button type="button" data-color="classification">Clases</button>
+    </nav>
+
+    <section class="tools" aria-label="Herramientas de medición">
+      <button type="button" data-tool="distance" title="Medir distancia"><span>↔</span><em>Distancia</em></button>
+      <button type="button" data-tool="area" title="Medir área"><span>▱</span><em>Área</em></button>
+      <button type="button" data-tool="height" title="Medir altura"><span>↕</span><em>Altura</em></button>
+      <button type="button" data-tool="profile" title="Trazar perfil"><span>⌇</span><em>Perfil</em></button>
+      <button type="button" data-tool="volume" title="Estimar volumen"><span>▦</span><em>Volumen</em></button>
+      <button type="button" class="tools__clear" data-tool="clear" title="Borrar mediciones"><span>×</span><em>Limpiar</em></button>
+    </section>
+
+    <aside class="layers" id="layers">
+      <button class="layers__trigger" id="layersTrigger" type="button" aria-expanded="false" aria-controls="layersPanel">
+        <span aria-hidden="true">≡</span> Capas
+      </button>
+      <div class="layers__panel" id="layersPanel" hidden>
+        <p class="panel-label">Lectura técnica</p>
+        <button class="layer-toggle is-active" type="button" data-layer="boundary"><i class="swatch swatch--boundary"></i>Área de análisis</button>
+        <button class="layer-toggle is-active" type="button" data-layer="contours"><i class="swatch swatch--contours"></i>Curvas · 0.50 m</button>
+        <button class="layer-toggle is-active" type="button" data-layer="crop"><i class="swatch swatch--crop"></i>Encuadre limpio</button>
+        <hr>
+        <label for="density">Densidad <output id="densityValue">4 M</output></label>
+        <input id="density" type="range" min="1000000" max="8000000" step="500000" value="4000000">
+        <button class="focus-button" id="focusArea" type="button">Volver al encuadre</button>
+      </div>
+    </aside>
+
+    <aside class="legend" id="elevationLegend" hidden aria-label="Leyenda de altura relativa">
+      <div><span>Altura relativa</span><small>rango visual</small></div>
+      <i></i>
+      <div><span id="elevationMin">—</span><span id="elevationMax">—</span></div>
+    </aside>
+
+    <div class="hint" id="hint">
+      <span class="hint__desktop">Arrastra para rotar · rueda para acercar · clic derecho para mover</span>
+      <span class="hint__mobile">Un dedo para rotar · pellizca para acercar</span>
+      <button type="button" id="dismissHint" aria-label="Ocultar ayuda">×</button>
+    </div>
+
+    <div class="statusline">
+      <span class="statusline__dot" aria-hidden="true"></span>
+      <span id="statusText">Caso técnico anonimizado</span>
+      <span aria-hidden="true">·</span>
+      <span id="pointCount">25.1 M puntos</span>
+    </div>
+  </main>
+
+  <script src="/assets/potree/libs/other/BinaryHeap.js"></script>
+  <script src="/assets/potree/libs/jquery/jquery-3.1.1.min.js"></script>
+  <script src="/assets/potree/libs/proj4/proj4.js"></script>
+  <script src="/assets/potree/libs/tween/tween.min.js"></script>
+  <script src="/assets/potree/libs/plasio/js/laslaz.js"></script>
+  <script src="/assets/potree/build/potree/potree.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
