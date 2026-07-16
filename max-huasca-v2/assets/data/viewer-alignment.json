@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "status": "provisional_visual_only",
+  "coordinate_reference": "EPSG:32614",
+  "translation_m": {
+    "east": -8.52,
+    "north": 5.13,
+    "vertical": 0.0
+  },
+  "anchor": {
+    "vertex": "V1",
+    "official_utm": [543166.41, 2234649.49],
+    "visual_target_utm": [543157.89, 2234654.62],
+    "physical_feature": "Esquina exterior suroeste de la barda y la losa contigua a la edificación de techo rojo"
+  },
+  "method": {
+    "date": "2026-07-16",
+    "basis": "Registro visual del plano T.1.01 contra el ortomosaico Pix4D Huasca_MAX_V2",
+    "independent_offsets_m": [
+      {"east": -8.51, "north": 5.15},
+      {"east": -8.53, "north": 5.11}
+    ],
+    "uncertainty_m_per_axis": 0.5,
+    "transform": "translation_only",
+    "rotation_deg": 0.0,
+    "scale": 1.0
+  },
+  "preserved_official_assets_sha256": {
+    "predio-utm.geojson": "2baea3042879281f6dd339fe23e800dfc3ef5dd22690506ed9fe2092b0c3f013",
+    "predio-wgs84.geojson": "1b259ae11a982245e6d9a5a2f7a2d025e5bcdee09b7c5f9aa3d7fd541f2eabcd",
+    "predio-3d.json": "30b34a0151975987cd227250528e8003b9e78806671cd940715790a5c576078e"
+  },
+  "scope": {
+    "applies_to": ["property_boundary_3d", "property_boundary_2d", "vertex_labels"],
+    "excluded": ["point_cloud", "orthomosaic", "mde", "contours", "measurements", "official_coordinates"]
+  },
+  "notice": "Ajuste visual provisional. No sustituye el amarre con la estación, el PPK ni las coordenadas oficiales del plano."
+}
