@@ -105,10 +105,11 @@
             <p class="eyebrow eyebrow--blue">Lectura por capas</p>
             <h2 id="views-title">Un terreno, distintas formas de entenderlo</h2>
           </div>
-          <p>Usa las pestañas para cambiar de vista o mueve el control para comparar directamente RGB y elevación.</p>
+          <p>El comparador es una vista 2D: arrastra el tirador sobre la imagen. Usa las pestañas para revisar cada capa por separado.</p>
         </div>
 
         <div class="view-lab">
+          <p class="view-tabs-hint" aria-hidden="true">Elige una vista <span>·</span> la comparativa se arrastra sobre la imagen</p>
           <div class="view-tabs" role="tablist" aria-label="Vistas del proyecto">
             <button class="view-tab is-active" id="tab-compare" type="button" role="tab" aria-selected="true" aria-controls="view-panel" tabindex="0" data-view="compare">Comparativa</button>
             <button class="view-tab" id="tab-rgb" type="button" role="tab" aria-selected="false" aria-controls="view-panel" tabindex="-1" data-view="rgb">RGB</button>
@@ -127,15 +128,16 @@
                 <div class="view-stage__divider" id="wipeDivider" aria-hidden="true"><span></span></div>
                 <span class="layer-label layer-label--left" id="leftLayerLabel">Elevación</span>
                 <span class="layer-label layer-label--right" id="rightLayerLabel">RGB</span>
+                <input class="view-stage__scrubber" id="wipeRange" type="range" min="5" max="95" value="52" step="1" aria-label="Arrastra para comparar elevación y RGB" aria-describedby="wipeValue">
+                <div class="view-stage__instruction" id="wipeInstruction" aria-hidden="true">
+                  <span>Arrastra para comparar</span>
+                  <strong>↔</strong>
+                  <output id="wipeValue" for="wipeRange">52% elevación</output>
+                </div>
                 <p class="media-error" id="viewError" hidden>No fue posible cargar esta vista. Intenta actualizar la página o abre el visor 3D.</p>
               </div>
               <figcaption id="viewCaption">Compara la apariencia real del terreno con la distribución de elevaciones procesada.</figcaption>
             </figure>
-            <div class="wipe-control" id="wipeControl">
-              <label for="wipeRange">División RGB / elevación</label>
-              <input id="wipeRange" type="range" min="5" max="95" value="52" step="1" aria-describedby="wipeValue">
-              <output id="wipeValue" for="wipeRange">52% elevación</output>
-            </div>
           </div>
         </div>
       </div>
@@ -148,21 +150,19 @@
             <p class="eyebrow">Experiencia tridimensional</p>
             <h2 id="potree-title">Recorre la nube de puntos</h2>
           </div>
-          <p>Activa el visor cuando estés listo. La carga inicia una sola vez para ahorrar datos en celular.</p>
+          <p>Este es el único visor 3D de la página. Se carga automáticamente al acercarte a esta sección y conserva todas las herramientas del proyecto.</p>
         </div>
 
         <div class="potree-shell" id="potreeShell">
-          <div class="potree-poster" id="potreePoster">
-            <img src="assets/view-elevation.webp" alt="Vista previa del visor tridimensional de Max Huasca" width="1600" height="1000" loading="lazy">
-            <div class="potree-poster__content">
-              <span class="technical-tag">25.1 M puntos procesados</span>
-              <button class="button button--primary button--large" id="activatePotree" type="button">Activar visor 3D</button>
-              <p>El visor puede consumir datos móviles. Recomendamos una conexión estable.</p>
+          <div class="potree-frame" id="potreeFrame" aria-live="polite">
+            <iframe id="potreeIframe" src="https://recorridos.dronemapping.mx/max-huasca-v2/" title="Visor 3D interactivo de la nube de puntos del proyecto Max Huasca" loading="lazy" allow="fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            <div class="potree-loading" id="potreeLoading" role="status">
+              <span aria-hidden="true"></span>
+              <p>Preparando nube interactiva…</p>
             </div>
           </div>
-          <div class="potree-frame" id="potreeFrame" hidden data-src="https://recorridos.dronemapping.mx/max-huasca-v2/" aria-live="polite"></div>
           <div class="potree-toolbar">
-            <p id="potreeStatus" role="status">Visor en espera.</p>
+            <p id="potreeStatus" role="status">Cargando visor interactivo…</p>
             <div>
               <button class="button button--compact button--outline" id="fullscreenPotree" type="button" disabled>Pantalla completa</button>
               <a class="button button--compact button--text" href="https://recorridos.dronemapping.mx/max-huasca-v2/" target="_blank" rel="noopener noreferrer">Abrir en otra pestaña</a>
@@ -228,8 +228,8 @@
           <p>Revisa el vuelo y los productos principales en una pieza breve. El video no se reproduce automáticamente.</p>
         </div>
         <div class="video-frame">
-          <video controls preload="none" poster="assets/video/poster.webp" playsinline aria-label="Video resumen del proyecto Max Huasca">
-            <source src="assets/video/reel-web.mp4" type="video/mp4">
+          <video controls preload="metadata" poster="assets/video/poster-v10.webp" playsinline aria-label="Video resumen final del proyecto Max Huasca, versión 10">
+            <source src="assets/video/reel-web-v10.mp4" type="video/mp4">
             Tu navegador no puede reproducir este video. Solicita una copia al equipo de Drone Mapping MX.
           </video>
         </div>

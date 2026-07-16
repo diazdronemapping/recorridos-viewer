@@ -83,9 +83,9 @@
     const comparisonImage = qs("#viewCompare");
     const overlay = qs("#viewOverlay");
     const divider = qs("#wipeDivider");
-    const wipeControl = qs("#wipeControl");
     const wipeRange = qs("#wipeRange");
     const wipeValue = qs("#wipeValue");
+    const wipeInstruction = qs("#wipeInstruction");
     const leftLabel = qs("#leftLayerLabel");
     const rightLabel = qs("#rightLayerLabel");
     const caption = qs("#viewCaption");
@@ -130,7 +130,8 @@
 
       overlay.hidden = !isComparison;
       divider.hidden = !isComparison;
-      wipeControl.hidden = !isComparison;
+      wipeRange.hidden = !isComparison;
+      wipeInstruction.hidden = !isComparison;
       leftLabel.hidden = !isComparison;
       rightLabel.hidden = !isComparison;
 
@@ -138,10 +139,14 @@
         leftLabel.textContent = "Elevación";
         rightLabel.textContent = "RGB";
       }
+
     }
 
     tabs.forEach((tab, index) => {
-      tab.addEventListener("click", () => selectView(tab.dataset.view, tab));
+      tab.addEventListener("click", () => {
+        selectView(tab.dataset.view, tab);
+        tab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      });
       tab.addEventListener("keydown", (event) => {
         let nextIndex = null;
         if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
@@ -154,6 +159,7 @@
         const nextTab = tabs[nextIndex];
         nextTab.focus();
         selectView(nextTab.dataset.view, nextTab);
+        nextTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
       });
     });
 
@@ -164,50 +170,68 @@
       wipeRange.setAttribute("aria-valuetext", `${numericValue}% elevación, ${100 - numericValue}% RGB`);
     }
 
-    wipeRange?.addEventListener("input", (event) => updateWipe(event.target.value));
+    wipeRange?.addEventListener("input", (event) => {
+      stage.classList.add("has-dragged");
+      updateWipe(event.target.value);
+    });
+    wipeRange?.addEventListener("pointerdown", () => stage.classList.add("has-dragged"), { once: true });
+    wipeRange?.addEventListener("keydown", () => stage.classList.add("has-dragged"), { once: true });
+
+    let wipePointer = null;
+    const updateWipeFromPointer = (event) => {
+      const bounds = stage.getBoundingClientRect();
+      const ratio = (event.clientX - bounds.left) / bounds.width;
+      const value = Math.round(Math.min(0.95, Math.max(0.05, ratio)) * 100);
+      wipeRange.value = String(value);
+      stage.classList.add("has-dragged");
+      updateWipe(value);
+    };
+
+    stage.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || wipeRange.hidden) return;
+      wipePointer = event.pointerId;
+      stage.setPointerCapture?.(event.pointerId);
+      updateWipeFromPointer(event);
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (wipePointer !== event.pointerId) return;
+      updateWipeFromPointer(event);
+    });
+    const finishWipe = (event) => {
+      if (wipePointer !== event.pointerId) return;
+      wipePointer = null;
+      if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+    };
+    stage.addEventListener("pointerup", finishWipe);
+    stage.addEventListener("pointercancel", finishWipe);
+
     updateWipe(wipeRange?.value || 52);
     selectView("compare", tabs[0]);
   }
 
   function initialisePotree() {
     const shell = qs("#potreeShell");
-    const poster = qs("#potreePoster");
     const frame = qs("#potreeFrame");
-    const activateButton = qs("#activatePotree");
+    const iframe = qs("#potreeIframe");
+    const loading = qs("#potreeLoading");
     const fullscreenButton = qs("#fullscreenPotree");
     const status = qs("#potreeStatus");
-    let activated = false;
-    let slowLoadTimer = null;
+    let loaded = false;
 
-    if (!shell || !poster || !frame || !activateButton || !fullscreenButton || !status) return;
+    if (!shell || !frame || !iframe || !fullscreenButton || !status) return;
 
-    activateButton.addEventListener("click", () => {
-      if (activated) return;
-      activated = true;
-      activateButton.disabled = true;
-      status.textContent = "Cargando el visor 3D…";
+    const slowLoadTimer = window.setTimeout(() => {
+      if (!loaded) status.textContent = "La carga está tardando más de lo habitual. Puedes abrir el visor en otra pestaña.";
+    }, 18000);
 
-      const iframe = document.createElement("iframe");
-      iframe.src = frame.dataset.src || POTREE_URL;
-      iframe.title = "Visor 3D de la nube de puntos del proyecto Max Huasca";
-      iframe.allow = "fullscreen";
-      iframe.allowFullscreen = true;
-      iframe.referrerPolicy = "strict-origin-when-cross-origin";
-
-      iframe.addEventListener("load", () => {
-        window.clearTimeout(slowLoadTimer);
-        status.textContent = "Visor 3D activo.";
-        fullscreenButton.disabled = false;
-      }, { once: true });
-
-      slowLoadTimer = window.setTimeout(() => {
-        status.textContent = "La carga está tardando más de lo habitual. Puedes abrir el visor en otra pestaña.";
-      }, 15000);
-
-      frame.replaceChildren(iframe);
-      poster.hidden = true;
-      frame.hidden = false;
-    });
+    iframe.addEventListener("load", () => {
+      loaded = true;
+      window.clearTimeout(slowLoadTimer);
+      frame.classList.add("is-ready");
+      loading?.setAttribute("hidden", "");
+      status.textContent = "Visor 3D interactivo activo.";
+      fullscreenButton.disabled = false;
+    }, { once: true });
 
     fullscreenButton.addEventListener("click", async () => {
       try {
