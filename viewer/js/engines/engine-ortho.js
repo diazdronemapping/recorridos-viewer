@@ -354,6 +354,10 @@ export function create(ctx, container) {
 
     hide() { /* el controller oculta el contenedor; el mapa persiste (keep-alive) */ },
 
+    // El contenedor cambió de tamaño sin resize de la ventana (Studio: panel
+    // de problemas, columnas) — Leaflet solo escucha window.resize.
+    resize() { map?.invalidateSize(); },
+
     getView() {
       if (!map) return null;
       const c = map.getCenter();

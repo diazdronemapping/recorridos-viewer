@@ -66,32 +66,32 @@ export function create(ctx, container) {
     maxFov = ok ? fl.max : MAX_FOV;
   }
 
-  function buildMarkers(scene) {
-    const defs = [];
-    for (const h of scene.hotspots || []) {
-      if (h.type === 'polygon') {
-        defs.push({
-          id: h.id,
-          polygon: h.positions.map(p => [degToRad(p.yaw), degToRad(p.pitch)]),
-          svgStyle: {
-            fill: h.style?.fill || 'rgba(123,193,66,0.16)',
-            stroke: h.style?.stroke || 'var(--rc-accent)',
-            'stroke-width': '2.5px',
-          },
-          data: { kind: 'info', content: h.content },
-        });
-        continue;
-      }
-      defs.push({
+  function markerDef(h) {
+    if (h.type === 'polygon') {
+      return {
         id: h.id,
-        position: { yaw: degToRad(h.position.yaw), pitch: degToRad(h.position.pitch) },
-        html: markerHtml(h.type, h.label || (h.type === 'info' ? h.content?.title : null), h.icon),
-        size: { width: 44, height: 44 },
-        anchor: 'center center',
-        data: { kind: h.type, target: h.target, url: h.url, content: h.content,
-                src: h.src, filename: h.filename },
-      });
+        polygon: h.positions.map(p => [degToRad(p.yaw), degToRad(p.pitch)]),
+        svgStyle: {
+          fill: h.style?.fill || 'rgba(123,193,66,0.16)',
+          stroke: h.style?.stroke || 'var(--rc-accent)',
+          'stroke-width': '2.5px',
+        },
+        data: { kind: 'info', content: h.content },
+      };
     }
+    return {
+      id: h.id,
+      position: { yaw: degToRad(h.position.yaw), pitch: degToRad(h.position.pitch) },
+      html: markerHtml(h.type, h.label || (h.type === 'info' ? h.content?.title : null), h.icon),
+      size: { width: 44, height: 44 },
+      anchor: 'center center',
+      data: { kind: h.type, target: h.target, url: h.url, content: h.content,
+              src: h.src, filename: h.filename },
+    };
+  }
+
+  function buildMarkers(scene) {
+    const defs = (scene.hotspots || []).map(markerDef);
     // nadir con logo (parche de marca "pegado" al piso del pano)
     const nadir = ctx.manifest.branding?.nadirLogo;
     if (nadir) {
@@ -245,6 +245,11 @@ export function create(ctx, container) {
   // persista como "vista guardada" de la escena (review adversarial P3).
   let introTarget = null;
 
+  // Token de carga (Task 10): solo la ÚLTIMA llamada a show() pinta markers y
+  // emite 'view'. Una carga sustituida (PSV resuelve `false` al reemplazar un
+  // setPanorama, no rechaza) o invalidada por hide() sale sin tocar nada.
+  let loadSeq = 0;
+
   async function runLittlePlanet(view) {
     if (!viewer) return;
     let aborted = false;
@@ -293,6 +298,8 @@ export function create(ctx, container) {
     capabilities: { radar: true, gyro: true, autopilot: true },
 
     async show(scene, savedView, opts) {
+      const seq = ++loadSeq;
+      const stale = () => seq !== loadSeq;
       introAbort?.();   // navegar mientras el intro corre → el intro cede
       applyFovLimits(scene);
       const view = savedView || {
@@ -301,23 +308,31 @@ export function create(ctx, container) {
         fov: scene.initialView?.fov ?? 70,
       };
       view.fov = clampFov(view.fov);
-      if (!viewer) {
-        await createViewer(scene, view);
-      } else {
-        viewer.setOptions({ minFov, maxFov });   // antes del pano: el mapeo de zoom depende de ellos
-        await viewer.setPanorama(ctx.resolveAsset(scene.src), {
-          position: { yaw: degToRad(view.yaw), pitch: degToRad(view.pitch) },
-          zoom: fovToZoom(view.fov),
-          panoData: sanitizePanoData(scene.panoData),
-          transition: false,
-          showLoader: true,
-        });
-        currentFov = view.fov;
+      try {
+        if (!viewer) {
+          await createViewer(scene, view);
+        } else {
+          viewer.setOptions({ minFov, maxFov });   // antes del pano: el mapeo de zoom depende de ellos
+          const loaded = await viewer.setPanorama(ctx.resolveAsset(scene.src), {
+            position: { yaw: degToRad(view.yaw), pitch: degToRad(view.pitch) },
+            zoom: fovToZoom(view.fov),
+            panoData: sanitizePanoData(scene.panoData),
+            transition: false,
+            showLoader: true,
+          });
+          if (loaded === false || stale()) return;   // otra carga la sustituyó
+          currentFov = view.fov;
+        }
+      } catch (e) {
+        if (stale()) return;   // el error es de una carga ya sustituida
+        throw e;
       }
+      if (stale()) return;
       // tras un display:none el tamaño interno quedó en 0 — recalcular antes
       // de proyectar markers (los polígonos darían paths NaN)
       viewer.autoSize();
       await new Promise(r => requestAnimationFrame(r));
+      if (stale()) return;
       markers.clearMarkers();
       markers.setMarkers(buildMarkers(scene));
       // Reproyectar EXPLÍCITAMENTE: si se navega mientras el intro corre (o la
@@ -339,6 +354,7 @@ export function create(ctx, container) {
     },
 
     hide() {
+      loadSeq++;        // una carga en vuelo ya no debe pintar en un contenedor oculto
       introAbort?.();
       viewer?.stopAnimation();
       autorotate?.stop();
@@ -363,6 +379,20 @@ export function create(ctx, container) {
       if (!viewer || !markers) return;
       markers.clearMarkers();
       markers.setMarkers(buildMarkers(scene));
+    },
+
+    // Studio: reconstruye SOLO el marker de un hotspot (edición en el
+    // inspector) — refresh() rehace todos y cada tecla los reconstruía.
+    refreshHotspot(scene, hotspotId) {
+      if (!viewer || !markers) return;
+      const h = (scene.hotspots || []).find(x => x.id === hotspotId);
+      let exists = true;
+      try { markers.getMarker(hotspotId); } catch { exists = false; }
+      if (!h) { if (exists) markers.removeMarker(hotspotId); return; }
+      const def = markerDef(h);
+      if (!exists) { markers.addMarker(def); return; }
+      try { markers.updateMarker(def); }
+      catch { markers.removeMarker(hotspotId); markers.addMarker(def); }   // cambió de clase de marker
     },
 
     // Studio: resalta el hotspot seleccionado.
