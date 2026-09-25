@@ -282,38 +282,48 @@ body {
   padding: 4px 12px; border-radius: 999px;
 }
 
-/* ---------- Markers (hotspots en pano) ---------- */
+/* ---------- Markers (hotspots en pano) ----------
+   R4 (lote 14 N+): aspecto desde css/hotspot-tokens.css (compartido con el Studio). */
 .rc-hotspot {
+  position: relative;
   display: grid; place-items: center;
   width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(26, 26, 26, 0.75);
-  border: 2px solid var(--rc-accent);
-  color: var(--rc-accent);
+  background: var(--rc-hs-glass);
+  border: 1.5px solid var(--rc-hs-ring);
+  box-shadow: var(--rc-hs-shadow), var(--rc-hs-inner);
+  color: var(--rc-text);
   cursor: pointer;
-  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(var(--rc-hs-blur));
+  backdrop-filter: blur(var(--rc-hs-blur));
 }
-.rc-hotspot--nav { border-color: var(--rc-text); color: var(--rc-text); }
-.rc-hotspot--nav:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
-.rc-hotspot--download { border-color: var(--rc-blue, #5AADE0); color: var(--rc-blue, #5AADE0); }
-.rc-hotspot--download:hover { border-color: var(--rc-accent); color: var(--rc-accent); }
-.rc-hotspot--info { position: relative; }
-.rc-hotspot--info::before,
-.rc-hotspot--info::after {
-  content: ''; position: absolute; inset: -2px; border-radius: 50%;
-  border: 2px solid var(--rc-accent);
-  animation: rc-pulse 2.2s var(--rc-ease) infinite;
+.rc-hotspot:hover { border-color: var(--rc-accent); }
+/* H1: tamaño por botón (44 = default) y giro del ícono de navegación */
+.rc-hotspot--s { width: 36px; height: 36px; }
+/* s: 36 px visuales, blanco táctil de 44 px (regla P2) — aro invisible que recibe el toque */
+.rc-hotspot--s::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
+.rc-hotspot--l { width: 54px; height: 54px; }
+.rc-hotspot--nav > svg { transform: rotate(var(--rc-rot, 0deg)); }
+/* info y descarga se distinguen por fondo (prototipo NP); style.color inline sigue mandando */
+.rc-hotspot--info { --rc-hs-glass: var(--rc-hs-info); }
+.rc-hotspot--download { --rc-hs-glass: var(--rc-hs-download); }
+/* pulso suave SOLO en navegación (SPEC §9 R4, M16) */
+.rc-hotspot--nav::after {
+  content: ''; position: absolute; inset: -1.5px; border-radius: 50%;
+  border: 1.5px solid var(--rc-hs-ring);
+  animation: rc-hs-pulse 2.6s var(--rc-ease) infinite;
   pointer-events: none;
 }
-.rc-hotspot--info::after { animation-delay: 1.1s; }
-@keyframes rc-pulse {
-  0%   { transform: scale(1);    opacity: 0.9; }
-  100% { transform: scale(2.05); opacity: 0; }
+@keyframes rc-hs-pulse {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%, 100% { transform: scale(1.5); opacity: 0; }
 }
 .rc-hotspot__label {
   position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  white-space: nowrap; font-size: 12px; font-family: var(--rc-font-body);
-  background: rgba(26,26,26,0.85); color: var(--rc-text);
-  padding: 3px 9px; border-radius: 5px; border: 1px solid var(--rc-border);
+  white-space: nowrap; font-size: 13px; font-family: var(--rc-font-body);
+  background: var(--rc-hs-label-bg); color: var(--rc-text);
+  -webkit-backdrop-filter: blur(var(--rc-hs-label-blur));
+  backdrop-filter: blur(var(--rc-hs-label-blur));
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rc-hs-label-border);
   opacity: 0; transition: opacity 200ms;
   pointer-events: none;
 }
@@ -473,7 +483,7 @@ body {
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .rc-fade, .rc-menu, .rc-plan__frame, .rc-info, .rc-hint { transition: none; }
-  .rc-hotspot--info::before, .rc-hotspot--info::after { animation: none; opacity: 0; }
+  .rc-hotspot--nav::after { animation: none; opacity: 0; }
   .rc-hint svg { animation: none; }
 }
 

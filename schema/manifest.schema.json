@@ -199,7 +199,17 @@
       "properties": {
         "id": { "type": "string", "description": "Identidad estable — requerida por el builder (round-trip) y el deep-link." },
         "type": { "type": "string" },
-        "icon": { "type": "string", "description": "Id de la biblioteca de iconos del viewer (casa, recamara, bano, cocina, alberca, cochera, arbol, agua, luz, camino, lindero, vista, estrella, alerta, documento, camara). Desconocido u omitido → icono por defecto del tipo." }
+        "icon": { "type": "string", "description": "Id de la biblioteca de iconos del viewer (casa, recamara, bano, cocina, alberca, cochera, arbol, agua, luz, camino, lindero, vista, estrella, alerta, documento, camara). Desconocido u omitido → icono por defecto del tipo." },
+        "rotation": { "type": "number", "minimum": -360, "maximum": 360, "description": "Giro de la flecha en grados (solo type nav). El visor acepta solo números finitos y los normaliza a [0,360)." },
+        "style": {
+          "type": "object",
+          "description": "Estilo por botón (aditivo). El visor ignora cualquier valor fuera de estas listas.",
+          "properties": {
+            "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "description": "Fondo del botón (#rgb o #rrggbb)." },
+            "size": { "enum": ["s", "m", "l"], "description": "36 / 44 / 54 px; sin valor = 44." },
+            "hover": { "enum": ["name", "thumb"], "description": "Qué se muestra al pasar el mouse. thumb se guarda pero el visor aún lo ignora." }
+          }
+        }
       }
     },
 
@@ -250,7 +260,7 @@
               "type": "object",
               "properties": {
                 "stroke": { "$ref": "#/$defs/cssColor" },
-                "fill": { "type": "string" }
+                "fill": { "type": "string", "description": "El visor solo acepta hex (#rgb, #rrggbb, #rrggbbaa) o rgb()/rgba() numérico; cualquier otro valor usa el relleno por defecto." }
               }
             },
             "content": { "$ref": "#/$defs/hotspotContent" }
@@ -315,16 +325,18 @@
           "properties": {
             "yaw": { "type": "number" },
             "pitch": { "type": "number" },
-            "fov": { "type": "number", "minimum": 20, "maximum": 120, "default": 65 }
+            "fov": { "type": "number", "minimum": 20, "maximum": 120, "description": "Solo se usa con fovOverride:true; si no, el visor aplica 90° vertical con tope de 130° horizontal." }
           }
         },
+        "fovOverride": { "type": "boolean", "description": "true = usar initialView.fov en vez de la regla 90°/130° del visor." },
+        "roll": { "type": "number", "minimum": -10, "maximum": 10, "description": "Horizonte: grados para enderezar la foto (solo lectura del visor)." },
         "northOffset": {
           "oneOf": [{ "type": "number" }, { "type": "null" }],
           "description": "Grados: bearing real del yaw=0 del pano. null = sin calibrar → el radar muestra pin sin cono."
         },
         "fovLimits": {
           "type": "object",
-          "description": "Límites de zoom del panorama (FOV en grados). Debe cumplir 20 ≤ min < max ≤ 120; si no, el viewer usa 30–90.",
+          "description": "Límites de zoom del panorama (FOV en grados). Debe cumplir 20 ≤ min < max ≤ 120; si no, el viewer usa 35–100.",
           "properties": {
             "min": { "type": "number", "minimum": 20, "maximum": 120 },
             "max": { "type": "number", "minimum": 20, "maximum": 120 }
@@ -412,10 +424,12 @@
                 "type": "object",
                 "properties": {
                   "stroke": { "$ref": "#/$defs/cssColor" },
-                  "fill": { "type": "string" },
-                  "weight": { "type": "number" }
+                  "fill": { "type": "string", "description": "El visor solo acepta hex (#rgb, #rrggbb, #rrggbbaa) o rgb()/rgba() numérico; otro valor = sin relleno." },
+                  "weight": { "type": "number", "description": "El visor lo acota a 0–20 (default 2)." },
+                  "opacity": { "type": "number", "minimum": 0, "maximum": 1, "description": "Opacidad del trazo (default 1)." }
                 }
               },
+              "label": { "type": "string", "description": "Nombre del botón de la capa (toggle). Se muestra como texto plano. Sin valor → nombre del tipo." },
               "popup": { "$ref": "#/$defs/hotspotContent" }
             }
           }

@@ -1,0 +1,20 @@
+/* hotspot-tokens.css — ÚNICA fuente del aspecto del botón (visor + capa de edición del Studio, R-7).
+   R4 (lote 14 N+): vidrio translúcido del color de marca, aro blanco de 1.5 px, sombra doble
+   y etiqueta en píldora de vidrio (contraste ≥4.5:1 incluso sobre cielo blanco). */
+:root {
+  /* respaldo sin color-mix (navegadores viejos): vidrio verde oscuro fijo */
+  --rc-hs-glass: rgba(40, 64, 28, .72);
+  --rc-hs-ring: rgba(255,255,255,.95);
+  --rc-hs-shadow: 0 6px 16px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.6);
+  --rc-hs-blur: 6px;
+  --rc-hs-label-bg: rgba(8,10,12,.62);
+  --rc-hs-label-border: rgba(255,255,255,.16);
+  --rc-hs-label-blur: 8px;
+  --rc-hs-inner: inset 0 1px 0 rgba(255,255,255,.35);
+  /* fondo por tipo (prototipo direccion-n-plus.html): info azul, descarga violeta */
+  --rc-hs-info: #1B4F7A;
+  --rc-hs-download: #4B3A78;
+}
+@supports (background: color-mix(in srgb, red 50%, blue)) {
+  :root { --rc-hs-glass: color-mix(in srgb, var(--rc-accent, #7BC142) 42%, rgba(12,14,16,.55)); }
+}

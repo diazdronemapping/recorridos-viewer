@@ -10,11 +10,27 @@ import { Viewer } from '@photo-sphere-viewer/core';
 import { MarkersPlugin } from '@photo-sphere-viewer/markers-plugin';
 import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
 import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
-import { degToRad, radToDeg } from '../geo-core.js';
+import { LinearMipmapLinearFilter } from 'three';
+import { degToRad, radToDeg, safeColor } from '../geo-core.js';
 import { iconSvg, iconClass } from '../hotspot-icons.js';
 import { safeLinkUrl } from '../manifest-loader.js';
 
-const MIN_FOV = 30, MAX_FOV = 90;
+const MIN_FOV = 35, MAX_FOV = 100;
+
+// R1 (lote 14 N+, como Panoraven): 90° vertical con tope de 130° horizontal,
+// recalculado en cada resize. initialView.fov solo manda con fovOverride:true (H9).
+const hFovToVFov = (h, aspect) => radToDeg(2 * Math.atan(Math.tan(degToRad(h) / 2) / aspect));
+export function defaultVFov(W, H) {
+  const a = W / H;
+  return a > 0 && Number.isFinite(a) ? Math.min(90, hFovToVFov(130, a)) : 90;
+}
+
+// roll (lote 14 N+, H3): enderezar el horizonte de la foto. Solo número finito,
+// acotado a ±10° (un manifest editado a mano con 45 no voltea la esfera).
+function rollCorrection(deg) {
+  const d = Number.isFinite(deg) ? Math.min(10, Math.max(-10, deg)) : 0;
+  return { pan: 0, tilt: 0, roll: degToRad(d) };
+}
 
 // panorama parcial: solo los 6 numéricos de recorte llegan a PSV (el manifest
 // no se pasa crudo a la librería)
@@ -31,7 +47,24 @@ function sanitizePanoData(pd) {
 const escHtml = s => String(s ?? '').replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function markerHtml(kind, label, iconId) {
+// Estilo por botón (lote 14 N+, índice H1). Del manifest solo pasan valores de
+// una lista cerrada: tamaño s/m/l, color #rgb/#rrggbb y giro numérico (solo nav).
+// Todo lo demás se ignora — nada del manifest se interpola crudo en class/style.
+const HS_SIZES = { s: 36, m: 44, l: 54 };
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+function hotspotDeco(h) {
+  const st = h.style && typeof h.style === 'object' ? h.style : {};
+  const size = Object.hasOwn(HS_SIZES, st.size) ? st.size : null;
+  const vars = [];
+  if (typeof st.color === 'string' && HEX_COLOR.test(st.color)) vars.push(`--rc-hs-glass: ${st.color}`);
+  if (h.type === 'nav' && Number.isFinite(h.rotation)) {
+    const r = Math.round(((h.rotation % 360) + 360) % 360 * 100) / 100;   // normalizado a [0,360)
+    vars.push(`--rc-rot: ${r % 360}deg`);
+  }
+  return { cls: size ? ` rc-hotspot--${size}` : '', style: vars.join('; '), px: HS_SIZES[size] || 44 };
+}
+
+function markerHtml(kind, label, iconId, deco = { cls: '', style: '' }) {
   // role/tabindex: los hotspots son operables por teclado (Tab + Enter/Espacio,
   // WCAG 2.1.1). PSV re-crea el DOM en cada setMarkers — los atributos viven
   // en el html (sobreviven) y el keydown va por DELEGACIÓN en el contenedor.
@@ -41,7 +74,8 @@ function markerHtml(kind, label, iconId) {
   // manifest-loader.js y el _normalize del Studio ya podan los tipos
   // desconocidos — esto es la defensa en profundidad del sink (Task 7).
   const kindClass = /^[a-z0-9-]+$/i.test(String(kind)) ? kind : 'otro';
-  return `<div class="rc-hotspot rc-hotspot--${kindClass}${iconClass(iconId)}" role="button" tabindex="0"${aria}>` +
+  const style = deco.style ? ` style="${escHtml(deco.style)}"` : '';
+  return `<div class="rc-hotspot rc-hotspot--${kindClass}${iconClass(iconId)}${deco.cls}"${style} role="button" tabindex="0"${aria}>` +
          iconSvg(iconId, kind) +
          (label ? `<span class="rc-hotspot__label">${escHtml(label)}</span>` : '') + `</div>`;
 }
@@ -49,6 +83,13 @@ function markerHtml(kind, label, iconId) {
 export function create(ctx, container) {
   let viewer = null, markers = null, autorotate = null, gyro = null;
   let currentFov = 70;
+  // R1: FOV de la regla para el tamaño actual (null = la escena usa fovOverride
+  // o aún no hay escena); en un resize el FOV se escala por regla nueva/ruleFov
+  // → sin zoom del visitante queda la regla, con zoom se conserva relativo.
+  let ruleFov = null;
+  // FOV que el visitante "quiere" sin acotar: si el resize lo recorta a los límites,
+  // el siguiente resize parte de aquí (ida y vuelta sin deriva). null = usar currentFov.
+  let wantFov = null;
   let gyroOn = false;
   let lastViewEmit = 0;
   // límites de zoom ACTIVOS (scene.fovLimits, P3) — el mapeo fov↔zoom de PSV
@@ -66,24 +107,43 @@ export function create(ctx, container) {
     maxFov = ok ? fl.max : MAX_FOV;
   }
 
+  // R1 en un cambio de tamaño: el FOV se escala por regla nueva/ruleFov (ambas acotadas
+  // a los límites de la escena → en reposo la razón es 1). Durante el intro no se toca
+  // (dueño de la cámara): se re-aplica al terminar, y también al mostrar cada escena.
+  function applyRule(w, h) {
+    if (!viewer || ruleFov === null || introTarget || !(w > 0 && h > 0)) return;
+    const r = clampFov(defaultVFov(w, h));
+    if (Math.abs(r - ruleFov) < 0.01) return;
+    // mismo nivel de zoom de PSV (entero) ⇒ el visitante no tocó el zoom desde el último resize
+    const base = wantFov !== null && fovToZoom(clampFov(wantFov)) === fovToZoom(currentFov) ? wantFov : currentFov;
+    const want = base * r / ruleFov;
+    const next = clampFov(want);
+    ruleFov = r;
+    viewer.zoom(fovToZoom(next));
+    currentFov = next;
+    wantFov = want;
+  }
+
   function markerDef(h) {
     if (h.type === 'polygon') {
       return {
         id: h.id,
         polygon: h.positions.map(p => [degToRad(p.yaw), degToRad(p.pitch)]),
         svgStyle: {
-          fill: h.style?.fill || 'rgba(123,193,66,0.16)',
-          stroke: h.style?.stroke || 'var(--rc-accent)',
+          // atributos SVG: solo colores de safeColor (sin url()/comillas), si no → default
+          fill: safeColor(h.style?.fill, 'rgba(123,193,66,0.16)'),
+          stroke: safeColor(h.style?.stroke, 'var(--rc-accent)'),
           'stroke-width': '2.5px',
         },
         data: { kind: 'info', content: h.content },
       };
     }
+    const deco = hotspotDeco(h);
     return {
       id: h.id,
       position: { yaw: degToRad(h.position.yaw), pitch: degToRad(h.position.pitch) },
-      html: markerHtml(h.type, h.label || (h.type === 'info' ? h.content?.title : null), h.icon),
-      size: { width: 44, height: 44 },
+      html: markerHtml(h.type, h.label || (h.type === 'info' ? h.content?.title : null), h.icon, deco),
+      size: { width: deco.px, height: deco.px },
       anchor: 'center center',
       data: { kind: h.type, target: h.target, url: h.url, content: h.content,
               src: h.src, filename: h.filename },
@@ -141,6 +201,7 @@ export function create(ctx, container) {
       container,
       panorama: ctx.resolveAsset(scene.src),
       panoData: sanitizePanoData(scene.panoData),
+      sphereCorrection: rollCorrection(scene.roll),
       navbar: false,
       // 'always' escucha en window (flechas/± /PageUp/Dn) — en el Studio va
       // apagado: secuestraría los inputs del inspector (review adversarial R1)
@@ -179,6 +240,20 @@ export function create(ctx, container) {
     currentFov = view.fov ?? 70;
 
     markers.addEventListener('select-marker', ({ marker }) => activateMarker(marker));
+
+    // R2 (lote 14 N+): mipmaps + anisotropía en cada textura nueva (PSV crea la
+    // suya sin mipmaps, core.module.js createTexture) → menos moiré al alejar.
+    // Respaldo móvil (R-2): táctil con textura máx. <16K → sin mipmaps (8K RGBA
+    // con mipmaps ≈ 180 MB de VRAM; riesgo de «WebGL context lost»).
+    viewer.addEventListener('panorama-loaded', ({ data }) => {
+      const tex = data?.texture, caps = viewer?.renderer?.renderer?.capabilities;
+      if (!tex?.isTexture || !caps || tex.generateMipmaps) return;
+      if (matchMedia('(pointer: coarse)').matches && caps.maxTextureSize < 16384) return;
+      tex.generateMipmaps = true;
+      tex.minFilter = LinearMipmapLinearFilter;
+      tex.anisotropy = caps.getMaxAnisotropy();
+      tex.needsUpdate = true;
+    });
 
     // Teclado en hotspots por DELEGACIÓN (el DOM de markers se re-crea en cada
     // setMarkers/refresh — un listener por elemento moriría). Un click sintético
@@ -222,6 +297,7 @@ export function create(ctx, container) {
     viewer.addEventListener('zoom-updated', ({ zoomLevel }) => {
       currentFov = maxFov - (zoomLevel / 100) * (maxFov - minFov);
     });
+    viewer.addEventListener('size-updated', ({ size }) => applyRule(size.width, size.height));
     viewer.addEventListener('click', ({ data }) => {
       if (!data || data.rightclick) return;
       ctx.emit('pano-click', { yawDeg: radToDeg(data.yaw), pitchDeg: radToDeg(data.pitch) });
@@ -249,11 +325,15 @@ export function create(ctx, container) {
   // emite 'view'. Una carga sustituida (PSV resuelve `false` al reemplazar un
   // setPanorama, no rechaza) o invalidada por hide() sale sin tocar nada.
   let loadSeq = 0;
+  // Última carga que TERMINÓ de pintar (API de drag del Studio, lote 06):
+  // isReady() ⇔ shownSeq === loadSeq — una carga en vuelo o un hide() lo invalidan.
+  let shownSeq = -1;
 
   async function runLittlePlanet(view) {
     if (!viewer) return;
     let aborted = false;
     let anim = null;
+    const seq = loadSeq;
     introTarget = { yaw: view.yaw ?? 0, pitch: view.pitch ?? 0, fov: clampFov(view.fov) };
     const abort = () => {
       if (aborted) return;
@@ -291,6 +371,9 @@ export function create(ctx, container) {
       cleanup();
       if (introAbort === abort) introAbort = null;
       introTarget = null;
+      // un resize durante el intro se ignoró → la regla del tamaño actual (salvo que
+      // otra escena ya haya tomado el visor: su show() aplica la suya)
+      if (seq === loadSeq) applyRule(container.clientWidth, container.clientHeight);
     }
   }
 
@@ -302,10 +385,14 @@ export function create(ctx, container) {
       const stale = () => seq !== loadSeq;
       introAbort?.();   // navegar mientras el intro corre → el intro cede
       applyFovLimits(scene);
+      const override = scene.fovOverride === true && Number.isFinite(scene.initialView?.fov);
+      ruleFov = override ? null : clampFov(defaultVFov(container.clientWidth, container.clientHeight));
+      wantFov = null;
+      const baseRule = ruleFov;   // la regla con la que se calculó view.fov
       const view = savedView || {
         yaw: scene.initialView?.yaw ?? 0,
         pitch: scene.initialView?.pitch ?? 0,
-        fov: scene.initialView?.fov ?? 70,
+        fov: override ? scene.initialView.fov : ruleFov,
       };
       view.fov = clampFov(view.fov);
       try {
@@ -317,11 +404,16 @@ export function create(ctx, container) {
             position: { yaw: degToRad(view.yaw), pitch: degToRad(view.pitch) },
             zoom: fovToZoom(view.fov),
             panoData: sanitizePanoData(scene.panoData),
+            sphereCorrection: rollCorrection(scene.roll),
             transition: false,
             showLoader: true,
           });
           if (loaded === false || stale()) return;   // otra carga la sustituyó
           currentFov = view.fov;
+          // un resize durante la carga movió ruleFov pero setPanorama aplicó el zoom de
+          // la regla vieja → volver a esa base; applyRule (abajo) lleva al tamaño actual
+          ruleFov = baseRule;
+          wantFov = null;
         }
       } catch (e) {
         if (stale()) return;   // el error es de una carga ya sustituida
@@ -331,6 +423,7 @@ export function create(ctx, container) {
       // tras un display:none el tamaño interno quedó en 0 — recalcular antes
       // de proyectar markers (los polígonos darían paths NaN)
       viewer.autoSize();
+      applyRule(container.clientWidth, container.clientHeight);
       await new Promise(r => requestAnimationFrame(r));
       if (stale()) return;
       markers.clearMarkers();
@@ -344,6 +437,7 @@ export function create(ctx, container) {
       // primer view para el radar/HUD
       const p = viewer.getPosition();
       ctx.emit('view', { yawDeg: radToDeg(p.yaw), pitchDeg: radToDeg(p.pitch), fovDeg: currentFov });
+      shownSeq = seq;
 
       // intro SIN await: goTo espera show() y retrasaría scene-changed/el fade.
       // opts.boot lo pone SOLO el goTo de arranque del controller — una pano
@@ -402,6 +496,49 @@ export function create(ctx, container) {
         const el = m.domElement || m.element;
         if (el && el.classList) el.classList.toggle('is-selected', m.id === hotspotId);
       }
+    },
+
+    // Studio (deslizador de horizonte, lote 11): aplica el roll SIN guardarlo;
+    // el siguiente show() vuelve al roll del manifest.
+    previewRoll(deg) {
+      viewer?.setOption('sphereCorrection', rollCorrection(deg));
+    },
+
+    /* ---- API de drag (Studio N+, lote 06). Aditiva: el visor no la llama. ---- */
+
+    // ¿Panorama cargado y sin carga en vuelo? (el loader de PSV no está encima)
+    isReady() {
+      return !!viewer && shownSeq === loadSeq;
+    },
+
+    // Punto de pantalla (clientX/Y) → { yaw, pitch } en grados (yaw en (-180, 180]),
+    // con el raycast de la cámara real de PSV. null si carga o cae fuera.
+    pointToPosition(clientX, clientY) {
+      if (!this.isReady()) return null;
+      const r = container.getBoundingClientRect();
+      const x = clientX - r.left, y = clientY - r.top;
+      if (!(x >= 0 && y >= 0 && x <= r.width && y <= r.height)) return null;
+      const s = viewer.dataHelper.viewerCoordsToSphericalCoords({ x, y });
+      if (!s || !Number.isFinite(s.yaw) || !Number.isFinite(s.pitch)) return null;
+      let yaw = radToDeg(s.yaw);
+      if (yaw > 180) yaw -= 360;
+      return { yaw, pitch: radToDeg(s.pitch) };
+    },
+
+    // Inversa: { yaw, pitch } (grados) → { x, y, visible } en px del contenedor.
+    // Sin redondear (sphericalCoordsToViewerCoords de PSV redondea al px): misma
+    // proyección de la cámara de PSV. Detrás de la cámara o no finito → visible
+    // false y coordenadas finitas fuera de pantalla (nunca NaN hacia el DOM).
+    project(pos) {
+      const off = { x: -1e5, y: -1e5, visible: false };
+      if (!viewer || !pos) return off;
+      const v = viewer.dataHelper.sphericalCoordsToVector3({ yaw: degToRad(pos.yaw), pitch: degToRad(pos.pitch) });
+      if (!(v.dot(viewer.state.direction) > 0)) return off;
+      v.project(viewer.renderer.camera);
+      const { width: W, height: H } = viewer.state.size;
+      const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return off;
+      return { x, y, visible: x >= 0 && x <= W && y >= 0 && y <= H };
     },
 
     async animateTo(lookAtDeg, { speed = '6rpm', signal } = {}) {

@@ -4,6 +4,12 @@
  * para reuso en Recorridos. Coordenadas [lat, lon] en grados WGS84.
  */
 
+// Colores del manifest que llegan a atributos SVG (polígonos del 360, capas de ortho):
+// solo hex (#rgb/#rrggbb/#rrggbbaa) o rgb()/rgba() NUMÉRICO — nada de url(), comillas
+// ni ';'. Cualquier otro valor (o un no-string) → el default del llamador.
+const SAFE_COLOR = /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0(?:\.\d*)?|1(?:\.0*)?|\.\d+)\s*)?\))$/i;
+export const safeColor = (v, dflt) => (typeof v === 'string' && SAFE_COLOR.test(v) ? v : dflt);
+
 export function haversineKm(a, b) {
   const R = 6371, toR = Math.PI / 180;
   const dLat = (b[0] - a[0]) * toR, dLon = (b[1] - a[1]) * toR;

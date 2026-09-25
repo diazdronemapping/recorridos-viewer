@@ -12,6 +12,7 @@ import { resolveEmbed } from './embed-providers.js';
 // byte de dompurify/dist/purify.es.mjs (sha256 c44274a7…cf9633ad). Se guarda
 // como .js para servirse con el mismo MIME que el resto de módulos vendorizados.
 import DOMPurify from '../vendor/dompurify/purify.es.js';
+import { INFO_HTML_CFG } from './info-html-policy.js';
 
 // Badges en lenguaje de cliente (uxV#7): nada de "3D+" ni jerga técnica
 const SCENE_BADGE = { pano360: '360', potree: 'NUBE 3D', ortho: 'MAPA', splat: '3D REAL' };
@@ -41,16 +42,9 @@ const EMBED_ALLOW = 'autoplay; fullscreen; picture-in-picture';
      inerte, antes de tocar el documento: un iframe prohibido nunca navega.
    · target: solo _blank y siempre con rel=noopener (el rel del autor se
      descarta: impide rel=opener).
-   · Sin soporte de DOMPurify el HTML se muestra como TEXTO: falla cerrado. */
-const INFO_HTML_CFG = {
-  ALLOWED_TAGS: ['p', 'br', 'hr', 'div', 'span', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                 'strong', 'b', 'em', 'i', 'u', 's', 'small', 'mark', 'sub', 'sup', 'code',
-                 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'a', 'img', 'figure', 'figcaption',
-                 'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'iframe'],
-  ALLOWED_ATTR: ['href', 'target', 'title', 'src', 'alt', 'width', 'height', 'colspan', 'rowspan'],
-  ALLOW_DATA_ATTR: false,
-  RETURN_DOM_FRAGMENT: true,
-};
+   · Sin soporte de DOMPurify el HTML se muestra como TEXTO: falla cerrado.
+   · La allowlist (INFO_HTML_CFG) vive en info-html-policy.js — única fuente,
+     la importa también el Studio para avisar al autor de lo que se quitará. */
 const purifier = DOMPurify(window);
 
 function embedBox(doc, emb) {

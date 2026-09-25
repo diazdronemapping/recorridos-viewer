@@ -14,7 +14,7 @@
  *   create(ctx, container) -> { capabilities, show(sceneDef, savedView), hide(), getView() }
  */
 
-import { animateDrawPath } from '../geo-core.js';
+import { animateDrawPath, safeColor } from '../geo-core.js';
 import { safeLinkUrl } from '../manifest-loader.js';
 
 /* Tile 1×1 transparente: huecos del borde del ortho sin ícono de imagen rota. */
@@ -105,12 +105,24 @@ async function fetchJson(url) {
 export function create(ctx, container) {
   let map = null;
   let builtSceneId = null;
-  let layersCtl = null;         // L.control.layers de la escena
+  let layersCtl = null;         // control de toggles propio de la escena (NO L.control.layers)
   let sceneLayers = [];         // capas a retirar al reconstruir (tiles, geojson, markers)
   let toggleLayers = [];        // overlays del control (pueden estar ON al salir)
   let homeBounds = null;        // encuadre default (predio > clip)
   let traceLayers = [];         // capas con trace — los <path> se recolectan al animar
   let traceRun = 0;             // token: invalida la limpieza de una animación superada
+  let hsMarkers = new Map();    // id del hotspot → L.marker (Studio: highlight; SOLO lookup)
+  let hsMarkerList = [];        // TODOS los markers agregados — id duplicado o ausente no debe dejar huérfanos
+  let selId = null;             // hotspot resaltado (sobrevive a reconstrucciones)
+  // Studio (editMode): show()/refresh() no se enciman — una reconstrucción a
+  // medias de otra duplicaría capas. En el visor show() corre sin este candado.
+  let busy = 0, idle = Promise.resolve();
+  async function exclusive(fn) {
+    while (busy) await idle;
+    busy++;
+    let done; idle = new Promise(r => { done = r; });
+    try { return await fn(); } finally { busy--; done(); }
+  }
 
   function createMap() {
     const L = window.L;
@@ -138,6 +150,9 @@ export function create(ctx, container) {
     // Attribution SIEMPRE visible (Esri lo exige) — bottomleft para no chocar
     // con el zoom; el margen extra lo da engine-ortho.css.
     L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map);
+    // Studio: la vista del mapa como 'map-view' (no 'view': ese es el radar del
+    // 360 en el chrome). moveend cubre también el zoom. El visor no lo escucha.
+    if (ctx.editMode) map.on('moveend', () => ctx.emit('map-view', engine.getView()));
   }
 
   function clearScene() {
@@ -145,7 +160,8 @@ export function create(ctx, container) {
     for (const l of sceneLayers) { try { map.removeLayer(l); } catch (_) {} }
     for (const l of toggleLayers) { try { map.removeLayer(l); } catch (_) {} }
     if (layersCtl) { try { map.removeControl(layersCtl); } catch (_) {} }
-    sceneLayers = []; toggleLayers = []; layersCtl = null;
+    for (const m of hsMarkerList) { try { map.removeLayer(m); } catch (_) {} }
+    sceneLayers = []; toggleLayers = []; layersCtl = null; hsMarkers = new Map(); hsMarkerList = [];
     homeBounds = null; traceLayers = []; traceRun++;
   }
 
@@ -207,22 +223,26 @@ export function create(ctx, container) {
     }
 
     /* (3) capas vectoriales del manifest */
-    const overlays = {};
+    const overlays = [];
     for (let i = 0; i < layerDefs.length; i++) {
       const def = layerDefs[i];
       const geo = layerGeos[i];
       if (!geo) continue;
 
-      const st = def.style || {};
+      // el estilo del manifest llega a atributos SVG de Leaflet: colores por safeColor,
+      // números finitos acotados; lo demás → default (fill inválido = sin relleno)
+      const st = def.style && typeof def.style === 'object' ? def.style : {};
+      const num = (v, lo, hi, dflt) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt);
+      const fill = safeColor(st.fill, null);
       const layer = L.geoJSON(geo, {
         interactive: def.type === 'predio',
         style: {
-          color: st.stroke || '#7BC142',
-          weight: st.weight ?? 2,
-          opacity: st.opacity ?? 1,
-          fill: !!st.fill,
-          fillColor: st.fill || undefined,
-          fillOpacity: st.fill ? 1 : 0, // la opacidad ya viaja dentro del rgba() del manifest
+          color: safeColor(st.stroke, '#7BC142'),
+          weight: num(st.weight, 0, 20, 2),
+          opacity: num(st.opacity, 0, 1, 1),
+          fill: !!fill,
+          fillColor: fill || undefined,
+          fillOpacity: fill ? 1 : 0, // la opacidad ya viaja dentro del rgba() del manifest
         },
       });
 
@@ -237,21 +257,24 @@ export function create(ctx, container) {
         // la CAPA y runTrace() recolecta los <path> cuando ya están en el DOM.
         if (def.trace) traceLayers.push(layer);
       } else if (def.toggle) {
-        overlays[def.label || LAYER_NAMES[def.type] || def.type] = layer; // OFF por default
+        // lista (no objeto): un label «__proto__» o numérico no pierde ni reordena capas;
+        // el nombre solo llega al DOM por textContent (abajo)
+        const name = typeof def.label === 'string' && def.label ? def.label : (LAYER_NAMES[def.type] || String(def.type));
+        overlays.push([name, layer]); // OFF por default
         toggleLayers.push(layer);
       } else {
         layer.addTo(map);
         sceneLayers.push(layer);
       }
     }
-    if (Object.keys(overlays).length) {
+    if (overlays.length) {
       // Toggles propios con label visible (el control genérico de Leaflet
       // escondía "Curvas de nivel" tras un icono anónimo — auditoría uxV#15).
       const Toggles = L.Control.extend({
         options: { position: 'topright' },
         onAdd() {
           const div = L.DomUtil.create('div', 'rc-ortho-toggles');
-          for (const [name, layer] of Object.entries(overlays)) {
+          for (const [name, layer] of overlays) {
             const btn = L.DomUtil.create('button', 'rc-ortho-toggle', div);
             btn.type = 'button';
             btn.textContent = name; // texto plano — sin innerHTML (XSS)
@@ -272,6 +295,23 @@ export function create(ctx, container) {
     }
 
     /* (4) hotspots nav / info / link */
+    buildHotspots(scene);
+
+    /* encuadre default + límites de paneo */
+    if (!homeBounds && clipGeo) {
+      try { const b = L.geoJSON(clipGeo).getBounds(); if (b.isValid()) homeBounds = b; } catch (_) {}
+    }
+    if (homeBounds) map.setMaxBounds(homeBounds.pad(2.5));
+  }
+
+  function buildHotspots(scene) {
+    const L = window.L;
+    // Retirar TODO lo agregado en el build anterior, no solo lo que sobrevivió
+    // en el Map: un id duplicado o ausente pisa la entrada del Map pero el
+    // marker viejo sigue en el mapa — hsMarkerList es la lista completa.
+    for (const m of hsMarkerList) { try { map.removeLayer(m); } catch (_) {} }
+    hsMarkers = new Map();
+    hsMarkerList = [];
     for (const h of scene.hotspots || []) {
       if (!h?.position) continue;
       const kind = h.type || 'info';
@@ -286,6 +326,8 @@ export function create(ctx, container) {
         title: h.label || '',
       }).addTo(map);
       marker.on('click', () => {
+        // Studio: el clic selecciona (como en engine-pano360), no ejecuta
+        if (ctx.editMode) { ctx.emit('hotspot-select', h.id); return; }
         if (kind === 'nav' && h.target) ctx.goTo(h.target);
         else if (kind === 'info') ctx.emit('info', h.content);
         else if (kind === 'link') {
@@ -294,14 +336,14 @@ export function create(ctx, container) {
           if (u) window.open(u, '_blank', 'noopener');
         }
       });
-      sceneLayers.push(marker);
+      hsMarkers.set(h.id, marker);
+      hsMarkerList.push(marker);
     }
+    if (selId) markSelected(selId);
+  }
 
-    /* encuadre default + límites de paneo */
-    if (!homeBounds && clipGeo) {
-      try { const b = L.geoJSON(clipGeo).getBounds(); if (b.isValid()) homeBounds = b; } catch (_) {}
-    }
-    if (homeBounds) map.setMaxBounds(homeBounds.pad(2.5));
+  function markSelected(id) {
+    for (const [hid, m] of hsMarkers) m.getElement()?.querySelector('.rc-hotspot')?.classList.toggle('is-selected', hid === id);
   }
 
   function runTrace() {
@@ -327,29 +369,34 @@ export function create(ctx, container) {
     }, DUR + 200);
   }
 
+  async function showNow(scene, savedView) {
+    await ensureLeaflet();
+    if (!map) createMap();
+    if (builtSceneId !== scene.id) {
+      clearScene();
+      await buildScene(scene);
+      builtSceneId = scene.id;
+    }
+    // el contenedor pudo estar display:none al crearse el mapa
+    map.invalidateSize();
+
+    if (savedView?.center) {
+      map.setView(savedView.center, savedView.zoom ?? map.getZoom(), { animate: false });
+    } else if (homeBounds) {
+      map.fitBounds(homeBounds, { padding: [56, 56], animate: false });
+    } else {
+      map.setView([0, 0], 3, { animate: false }); // sin datos: no dejar el mapa sin vista
+    }
+    runTrace();
+    if (ctx.debug) console.debug('[ortho] show', scene.id, savedView || '(fit predio)');
+  }
+
   const engine = {
     capabilities: { radar: false, gyro: false, autopilot: false },
 
-    async show(scene, savedView) {
-      await ensureLeaflet();
-      if (!map) createMap();
-      if (builtSceneId !== scene.id) {
-        clearScene();
-        await buildScene(scene);
-        builtSceneId = scene.id;
-      }
-      // el contenedor pudo estar display:none al crearse el mapa
-      map.invalidateSize();
-
-      if (savedView?.center) {
-        map.setView(savedView.center, savedView.zoom ?? map.getZoom(), { animate: false });
-      } else if (homeBounds) {
-        map.fitBounds(homeBounds, { padding: [56, 56], animate: false });
-      } else {
-        map.setView([0, 0], 3, { animate: false }); // sin datos: no dejar el mapa sin vista
-      }
-      runTrace();
-      if (ctx.debug) console.debug('[ortho] show', scene.id, savedView || '(fit predio)');
+    // Visor: igual que siempre. Studio (editMode): serializado con refresh().
+    show(scene, savedView) {
+      return ctx.editMode ? exclusive(() => showNow(scene, savedView)) : showNow(scene, savedView);
     },
 
     hide() { /* el controller oculta el contenedor; el mapa persiste (keep-alive) */ },
@@ -364,6 +411,69 @@ export function create(ctx, container) {
       return { center: [+c.lat.toFixed(7), +c.lng.toFixed(7)], zoom: map.getZoom() };
     },
 
+    /* ---- Studio N+ (lote 06). Aditivo: el visor no llama nada de esto. ---- */
+
+    // Sin `force` y misma escena: solo rehace los botones (como el refresh del
+    // 360). Con `force` (o escena distinta): reconstruye TODAS las capas sin la
+    // caché de builtSceneId — p. ej. tras editar tiles.url — y, si es la misma
+    // escena, conserva el encuadre que tenía el usuario.
+    refresh(scene, { force = false } = {}) {
+      if (!map || !scene) return Promise.resolve();
+      return exclusive(async () => {
+        if (!map) return;
+        const same = builtSceneId === scene.id;
+        if (same && !force) { buildHotspots(scene); return; }
+        const c = map.getCenter(), z = map.getZoom();
+        clearScene();
+        builtSceneId = null;
+        await buildScene(scene);
+        builtSceneId = scene.id;
+        map.invalidateSize();
+        if (same) map.setView(c, z, { animate: false });
+        else if (homeBounds) map.fitBounds(homeBounds, { padding: [56, 56], animate: false });
+      });
+    },
+
+    highlight(hotspotId) { selId = hotspotId || null; markSelected(selId); },
+
+    // Centro actual del mapa → [lat, lng] (sin redondear, a diferencia de getView).
+    getCenter() {
+      if (!map) return null;
+      const c = map.getCenter();
+      return [c.lat, c.lng];
+    },
+
+    // Encuadre «a lo ancho» (SPEC §6.8): el predio cubre todo el contenedor.
+    fitWide() {
+      if (!map || !homeBounds) return;
+      map.setView(homeBounds.getCenter(), map.getBoundsZoom(homeBounds, true), { animate: false });
+    },
+
+    // Escena construida y sin show()/refresh() en vuelo.
+    isReady() { return !!map && !!builtSceneId && !busy; },
+
+    // Punto de pantalla (clientX/Y) → [lat, lng] | null (cargando o fuera).
+    pointToPosition(clientX, clientY) {
+      if (!this.isReady()) return null;
+      const r = container.getBoundingClientRect();
+      const x = clientX - r.left, y = clientY - r.top;
+      if (!(x >= 0 && y >= 0 && x <= r.width && y <= r.height)) return null;
+      const ll = map.containerPointToLatLng([x, y]);
+      return Number.isFinite(ll?.lat) && Number.isFinite(ll?.lng) ? [ll.lat, ll.lng] : null;
+    },
+
+    // Inversa: [lat, lng] → { x, y, visible } en px del contenedor. Entrada
+    // inválida o no finita → visible:false con coordenadas finitas (nunca NaN).
+    project(pos) {
+      const off = { x: -1e5, y: -1e5, visible: false };
+      if (!map || !pos) return off;
+      let p;
+      try { p = map.latLngToContainerPoint(pos); } catch (_) { return off; }
+      if (!Number.isFinite(p?.x) || !Number.isFinite(p?.y)) return off;
+      const sz = map.getSize();
+      return { x: p.x, y: p.y, visible: p.x >= 0 && p.x <= sz.x && p.y >= 0 && p.y <= sz.y };
+    },
+
     destroy() {
       clearScene();
       if (map) { try { map.remove(); } catch (_) {} map = null; }
@@ -375,6 +485,10 @@ export function create(ctx, container) {
   /* referencias de solo-lectura para debug/QA (no forman parte del contrato) */
   Object.defineProperty(engine, '_map', { get: () => map });
   Object.defineProperty(engine, '_layersCtl', { get: () => layersCtl });
+  // QA: bounds del predio que calcula buildScene → [[sur, oeste], [norte, este]]
+  Object.defineProperty(engine, '_homeBoundsForQA', {
+    value: () => homeBounds ? [[homeBounds.getSouth(), homeBounds.getWest()], [homeBounds.getNorth(), homeBounds.getEast()]] : null,
+  });
 
   return engine;
 }
