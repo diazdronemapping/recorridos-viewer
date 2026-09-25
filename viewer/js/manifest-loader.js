@@ -15,6 +15,24 @@ const KNOWN_HOTSPOT_TYPES = {
   splat: [],
 };
 
+/** Task 8a: esquemas que un hotspot link puede abrir. javascript:, data:,
+ *  vbscript:, blob: y cualquier otro quedan fuera (window.open(…,'noopener')
+ *  solo contiene javascript: en Chromium; Firefox/Safari no están medidos). */
+const LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+/** URL de un hotspot link normalizada (absoluta; las relativas se resuelven
+ *  contra el documento) o null si no es http(s)/mailto/tel. Se aplica UNA vez
+ *  aquí al cargar y otra vez en cada sink (engine-pano360/engine-ortho): el
+ *  Studio monta los motores sin pasar por este loader. */
+export function safeLinkUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || /[\u0000-\u001f\u007f]/.test(s)) return null;   // "java\tscript:" y compañía
+  let u;
+  try { u = new URL(s, document.baseURI); } catch { return null; }
+  return LINK_SCHEMES.has(u.protocol) ? u.href : null;
+}
+
 export async function loadManifest(url) {
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`manifest ${res.status} ${res.statusText} (${url})`);
@@ -40,6 +58,16 @@ export async function loadManifest(url) {
         return false;
       }
       return true;
+    }).map(h => {
+      if (h.type !== 'link') return h;
+      // Task 8a: url/href normalizados a UNA url segura (o null = el hotspot no abre nada)
+      const raw = h.url ?? h.href;
+      const url = safeLinkUrl(raw);
+      if (raw != null && !url) {
+        console.warn(`[recorridos] hotspot "${h.id}" link con dirección no permitida (solo http/https/mailto/tel) — no abrirá nada`);
+      }
+      const { href: _drop, ...rest } = h;
+      return { ...rest, url };
     });
     const s = { ...scene, hotspots };
     // Remap multi-origen TARGETED (F2-L1): los assets compartidos raíz-absolutos

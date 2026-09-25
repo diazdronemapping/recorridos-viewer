@@ -119,25 +119,17 @@
 
 <script type="module">
   import { TourController } from './js/tour-controller.js';
+  import { resolveManifestParam } from './js/site-config.js';
 
   const params = new URLSearchParams(location.search);
   const tourId = params.get('tour') || 'santa-maria';
-  // ?manifest=<url> permite previsualizar cualquier tour (lo usa el Studio);
-  // por defecto se resuelve por slug bajo ../tours/.
-  const tourUrl = params.get('manifest') || `../tours/${tourId}/manifest.json`;
-  // ?embed=0|1 fuerza el modo sobre la auto-detección de iframe — el preview
-  // del Studio corre en iframe pero debe comportarse como standalone (rueda
-  // directa), review adversarial P2.
-  const embedParam = params.get('embed');
-  const controller = new TourController({
-    tourUrl,
-    debug: params.get('debug') === '1',
-    embed: embedParam === null ? null : embedParam === '1',
-    // pantalla limpia para embeds/kioscos sin tocar el manifest
-    kiosk: params.get('kiosk') === '1',
-  });
-  window.tour = controller; // consola + debug
-  controller.boot().catch(err => {
+  // ?manifest=<url> previsualiza un tour (lo usan el preview y el catálogo del
+  // Studio) — R2-01: SOLO del mismo origen (ruta o blob: propio). Uno ajeno no
+  // se pide: se muestra el aviso de error. Sin ?manifest=, por slug.
+  const manifestParam = params.get('manifest');
+  const tourUrl = manifestParam ? resolveManifestParam(manifestParam)
+    : `../tours/${tourId}/manifest.json`;
+  const fail = err => {
     console.error('[recorridos] boot failed:', err);
     // Si el fallo fue al montar la escena, el overlay de error de escena ya
     // ofrece Reintentar/Volver — no duplicar mensaje.
@@ -148,7 +140,24 @@
       '<p class="rc-loading__error">No se pudo cargar el recorrido.<br>Revisa tu conexión e inténtalo de nuevo.</p>' +
       '<details class="rc-loading__detail"><summary>Detalle técnico</summary><pre></pre></details>';
     loading.querySelector('pre').textContent = String(err?.message || err);
-  });
+  };
+  if (!tourUrl) {
+    fail(new Error('?manifest= no permitido: solo se cargan recorridos de este mismo sitio'));
+  } else {
+    // ?embed=0|1 fuerza el modo sobre la auto-detección de iframe — el preview
+    // del Studio corre en iframe pero debe comportarse como standalone (rueda
+    // directa), review adversarial P2.
+    const embedParam = params.get('embed');
+    const controller = new TourController({
+      tourUrl,
+      debug: params.get('debug') === '1',
+      embed: embedParam === null ? null : embedParam === '1',
+      // pantalla limpia para embeds/kioscos sin tocar el manifest
+      kiosk: params.get('kiosk') === '1',
+    });
+    window.tour = controller; // consola + debug
+    controller.boot().catch(fail);
+  }
 </script>
 </body>
 </html>

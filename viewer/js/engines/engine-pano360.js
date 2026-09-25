@@ -12,6 +12,7 @@ import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
 import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 import { degToRad, radToDeg } from '../geo-core.js';
 import { iconSvg, iconClass } from '../hotspot-icons.js';
+import { safeLinkUrl } from '../manifest-loader.js';
 
 const MIN_FOV = 30, MAX_FOV = 90;
 
@@ -36,7 +37,11 @@ function markerHtml(kind, label, iconId) {
   // en el html (sobreviven) y el keydown va por DELEGACIÓN en el contenedor.
   // iconId jamás se interpola crudo: iconSvg/iconClass son lookups de la lib.
   const aria = label ? ` aria-label="${escHtml(label)}"` : '';
-  return `<div class="rc-hotspot rc-hotspot--${kind}${iconClass(iconId)}" role="button" tabindex="0"${aria}>` +
+  // kind (el `type` del hotspot) entra a una CLASE solo si es un token simple:
+  // manifest-loader.js y el _normalize del Studio ya podan los tipos
+  // desconocidos — esto es la defensa en profundidad del sink (Task 7).
+  const kindClass = /^[a-z0-9-]+$/i.test(String(kind)) ? kind : 'otro';
+  return `<div class="rc-hotspot rc-hotspot--${kindClass}${iconClass(iconId)}" role="button" tabindex="0"${aria}>` +
          iconSvg(iconId, kind) +
          (label ? `<span class="rc-hotspot__label">${escHtml(label)}</span>` : '') + `</div>`;
 }
@@ -116,7 +121,11 @@ export function create(ctx, container) {
     const d = marker.data || {};
     if (d.kind === 'nav' && d.target) ctx.goTo(d.target);
     else if (d.kind === 'info' && d.content) ctx.emit('info', d.content);
-    else if (d.kind === 'link' && d.url) window.open(d.url, '_blank', 'noopener');
+    else if (d.kind === 'link') {
+      // Task 8a: solo http(s)/mailto/tel — el Studio monta este motor sin manifest-loader
+      const u = safeLinkUrl(d.url);
+      if (u) window.open(u, '_blank', 'noopener');
+    }
     else if (d.kind === 'download' && d.src) {
       // descarga directa: mismo origen en el sitio publicado / object URL en el
       // Studio y el preview — en ambos casos el atributo download sí aplica

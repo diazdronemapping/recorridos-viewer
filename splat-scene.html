@@ -112,9 +112,22 @@ if (params.get('controls') === 'external') document.body.classList.add('embedded
 
 // ── Whitelist del src (clon del criterio ?cloud= de potree-scene) ──────────
 const CLOUD_HOST_PROD = 'https://presentacion.dronemapping.mx';
+// R2-01: ?cloudhost= solo acepta un ORIGEN que sea este sitio o el host de
+// nubes de producción (espejo de allowedCloudHost en viewer/js/site-config.js)
+function allowedCloudHost(raw) {
+  if (typeof raw !== 'string' || !/^https?:\/\//i.test(raw) || /[\s\\]/.test(raw)) return null;
+  let u;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.pathname !== '/' || u.search || u.hash || u.username || u.password) return null;
+  return (u.origin === location.origin || u.origin === CLOUD_HOST_PROD) ? u.origin : null;
+}
 const CLOUD_HOST = (() => {
   const qp = params.get('cloudhost');
-  if (qp) return qp.replace(/\/+$/, '');
+  if (qp) {
+    const ok = allowedCloudHost(qp);
+    if (ok) return ok;
+    console.warn('[splat-scene] ?cloudhost= ignorado: solo este sitio o ' + CLOUD_HOST_PROD);
+  }
   return location.hostname === 'recorridos.dronemapping.mx' ? CLOUD_HOST_PROD : '';
 })();
 const SPLAT_PREFIX = '/assets/_splat/clouds/';
@@ -237,6 +250,9 @@ window.addEventListener('pointerdown', postInteract, true);
 window.addEventListener('wheel', postInteract, { capture: true, passive: true });
 
 window.addEventListener('message', (e) => {
+  // S10 (auditoría 2026-09-23): solo manda el PADRE que embebe esta página; el
+  // filtro de origen solo no frena a un iframe hermano u otra ventana del mismo origen.
+  if (e.source !== window.parent) return;
   if (!allowedOrigin(e.origin)) return;
   const d = e.data;
   if (!d || d.source !== 'splat-ctrl') return;

@@ -16,12 +16,42 @@
  * CORS verificado 2026-07-12: GitHub Pages sirve Access-Control-Allow-Origin:*.
  */
 
-const CLOUD_HOST_PROD = 'https://presentacion.dronemapping.mx';
+export const CLOUD_HOST_PROD = 'https://presentacion.dronemapping.mx';
+
+/** R2-01 (review Ola 2): ?cloudhost= es un override de QA, no una puerta a
+ *  cualquier host. Solo vale un ORIGEN (sin ruta, query ni fragmento) que sea
+ *  el propio sitio o el host de nubes de producción; lo demás se ignora.
+ *  Devuelve el origen normalizado o null. Espejo en splat-scene.html. */
+export function allowedCloudHost(raw) {
+  if (typeof raw !== 'string' || !/^https?:\/\//i.test(raw) || /[\s\\]/.test(raw)) return null;
+  let u;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.pathname !== '/' || u.search || u.hash || u.username || u.password) return null;
+  return (u.origin === location.origin || u.origin === CLOUD_HOST_PROD) ? u.origin : null;
+}
+
+/** R2-01: ?manifest= (preview del Studio y catálogo local) solo carga un
+ *  manifest del MISMO origen — ruta relativa o raíz-absoluta, o el blob: que
+ *  genera el propio sitio. Un manifest ajeno pondría contenido de un tercero
+ *  bajo el dominio y el chrome del sitio (y en localhost, junto al API del
+ *  Studio). Devuelve la URL absoluta o null. */
+export function resolveManifestParam(raw) {
+  if (typeof raw !== 'string' || !raw || /[\u0000- \\]/.test(raw)) return null;
+  let u;
+  try { u = new URL(raw, location.href); } catch { return null; }
+  if (u.protocol === 'blob:') return u.origin === location.origin ? u.href : null;
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  return u.origin === location.origin ? u.href : null;
+}
 
 export const CLOUD_HOST = (() => {
   try {
     const qp = new URLSearchParams(location.search).get('cloudhost');
-    if (qp) return qp.replace(/\/+$/, '');
+    if (qp) {
+      const ok = allowedCloudHost(qp);
+      if (ok) return ok;
+      console.warn('[recorridos] ?cloudhost= ignorado: solo se acepta este sitio o ' + CLOUD_HOST_PROD);
+    }
     return location.hostname === 'recorridos.dronemapping.mx' ? CLOUD_HOST_PROD : '';
   } catch { return ''; }
 })();

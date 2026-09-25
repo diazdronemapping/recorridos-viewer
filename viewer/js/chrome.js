@@ -8,6 +8,10 @@
 
 import { normDeg } from './geo-core.js';
 import { resolveEmbed } from './embed-providers.js';
+// DOMPurify 3.4.16 (Cure53 · Apache-2.0 OR MPL-2.0), VENDORIZADO: copia byte a
+// byte de dompurify/dist/purify.es.mjs (sha256 c44274a7…cf9633ad). Se guarda
+// como .js para servirse con el mismo MIME que el resto de módulos vendorizados.
+import DOMPurify from '../vendor/dompurify/purify.es.js';
 
 // Badges en lenguaje de cliente (uxV#7): nada de "3D+" ni jerga técnica
 const SCENE_BADGE = { pano360: '360', potree: 'NUBE 3D', ortho: 'MAPA', splat: '3D REAL' };
@@ -15,6 +19,77 @@ const SCENE_BADGE = { pano360: '360', potree: 'NUBE 3D', ortho: 'MAPA', splat: '
 // Strings autorados (títulos, labels) SIEMPRE escapados antes de innerHTML.
 const esc = s => String(s ?? '').replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Atributos de TODO iframe de embed: el estructurado (content.embed) y el que
+// venga dentro de content.html usan los mismos — una sola fuente, sin deriva.
+const EMBED_SANDBOX = 'allow-scripts allow-same-origin allow-popups allow-presentation';
+const EMBED_ALLOW = 'autoplay; fullscreen; picture-in-picture';
+
+/* ---------- content.html → DOM seguro (S3 · auditoría 2026-09-23) ----------
+   content.html es HTML de AUTOR (manifest) y antes entraba crudo a innerHTML.
+   Ahora pasa por DOMPurify con una lista blanca EDITORIAL, la que promete el
+   Studio ("Descripción (HTML simple)"): texto, énfasis, listas, enlaces,
+   imágenes, figuras y tablas. Lo demás se poda CONSERVANDO su texto
+   (KEEP_CONTENT): scripts, handlers on*, javascript:/data: en enlaces (URIs
+   de DOMPurify), formularios, <style> y style= (overlays sobre el sitio),
+   id/name (clobbering: un id="loading" del autor ganaba al #loading real),
+   class (clases del chrome) y data-* (no enganchar el visor de imágenes).
+   · Instancia PROPIA de DOMPurify: su config no se comparte con nadie.
+   · Devuelve un DocumentFragment inerte que se inserta SIN re-parsear HTML.
+   · <iframe>: se REEMPLAZA por el embed que construimos desde resolveEmbed
+     (lista blanca de embed-providers.js) o se elimina — en el fragmento
+     inerte, antes de tocar el documento: un iframe prohibido nunca navega.
+   · target: solo _blank y siempre con rel=noopener (el rel del autor se
+     descarta: impide rel=opener).
+   · Sin soporte de DOMPurify el HTML se muestra como TEXTO: falla cerrado. */
+const INFO_HTML_CFG = {
+  ALLOWED_TAGS: ['p', 'br', 'hr', 'div', 'span', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                 'strong', 'b', 'em', 'i', 'u', 's', 'small', 'mark', 'sub', 'sup', 'code',
+                 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'a', 'img', 'figure', 'figcaption',
+                 'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'iframe'],
+  ALLOWED_ATTR: ['href', 'target', 'title', 'src', 'alt', 'width', 'height', 'colspan', 'rowspan'],
+  ALLOW_DATA_ATTR: false,
+  RETURN_DOM_FRAGMENT: true,
+};
+const purifier = DOMPurify(window);
+
+function embedBox(doc, emb) {
+  const box = doc.createElement('div');
+  box.className = 'rc-embed';
+  const f = doc.createElement('iframe');
+  f.setAttribute('sandbox', EMBED_SANDBOX);   // restricciones puestas antes que el src
+  f.setAttribute('allow', EMBED_ALLOW);
+  f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+  f.setAttribute('loading', 'lazy');
+  f.setAttribute('title', emb.provider);
+  f.setAttribute('src', emb.src);
+  box.appendChild(f);
+  return box;
+}
+
+function infoHtmlFragment(html) {
+  const dirty = String(html);
+  if (!purifier.isSupported) {
+    const plain = document.createDocumentFragment();
+    plain.append(dirty);   // nodo de TEXTO: nunca HTML crudo
+    return plain;
+  }
+  const frag = purifier.sanitize(dirty, INFO_HTML_CFG);
+  for (const f of frag.querySelectorAll('iframe')) {
+    const emb = resolveEmbed(f.getAttribute('src'));
+    if (emb) f.replaceWith(embedBox(frag.ownerDocument, emb));
+    else f.remove();
+  }
+  for (const a of frag.querySelectorAll('a[target]')) {
+    if (a.getAttribute('target').trim().toLowerCase() === '_blank') {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    } else {
+      a.removeAttribute('target');
+    }
+  }
+  return frag;
+}
 
 export class Chrome {
   constructor(controller) {
@@ -376,12 +451,14 @@ export class Chrome {
       // src construido por nosotros. URL no reconocida → no se renderiza nada.
       const emb = resolveEmbed(content.embed.url);
       if (emb) html += `<div class="rc-embed"><iframe src="${esc(emb.src)}" title="${esc(emb.provider)}"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-        allow="autoplay; fullscreen; picture-in-picture"
+        sandbox="${EMBED_SANDBOX}"
+        allow="${EMBED_ALLOW}"
         referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe></div>`;
     }
-    if (content.html) html += content.html;
     box.innerHTML = html;
+    // content.html (S3): HTML de autor → fragmento saneado, anexado al final
+    // (misma posición que antes) sin volver a pasar por innerHTML
+    if (content.html) box.append(infoHtmlFragment(content.html));
     if (imgs.length) box.querySelectorAll('[data-lb]').forEach(el =>
       el.addEventListener('click', () => this.openLightbox(imgs, +el.dataset.lb || 0)));
     // el foco entra al panel (WCAG: el diálogo recibe el foco al abrir) y se

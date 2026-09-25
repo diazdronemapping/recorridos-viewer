@@ -15,6 +15,7 @@
  */
 
 import { animateDrawPath } from '../geo-core.js';
+import { safeLinkUrl } from '../manifest-loader.js';
 
 /* Tile 1×1 transparente: huecos del borde del ortho sin ícono de imagen rota. */
 const BLANK_TILE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -30,9 +31,19 @@ const ICONS = {
   link: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
 };
 
+// S2 (auditoría 2026-09-23): L.divIcon asigna este HTML con innerHTML, así que
+// todo string del manifest se escapa ANTES de interpolarlo. Dos sinks, ambos de
+// contexto HTML: la etiqueta es TEXTO dentro del <span> y el tipo va DENTRO del
+// atributo class (comillas dobles); para los dos, el escape de entidades de
+// & < > " ' es el correcto (aquí no hay contexto CSS ni URL). El tipo llega crudo
+// desde el Studio, que monta este motor sin la poda de tipos de manifest-loader.
+// El title del marker NO pasa por aquí: Leaflet lo asigna como propiedad DOM.
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 function markerHtml(kind, label) {
-  return `<div class="rc-hotspot rc-hotspot--${kind}">${ICONS[kind] || ICONS.info}` +
-         (label ? `<span class="rc-hotspot__label">${label}</span>` : '') + `</div>`;
+  return `<div class="rc-hotspot rc-hotspot--${esc(kind)}">${ICONS[kind] || ICONS.info}` +
+         (label ? `<span class="rc-hotspot__label">${esc(label)}</span>` : '') + `</div>`;
 }
 
 /* ---------- carga única del vendor ----------
@@ -277,7 +288,11 @@ export function create(ctx, container) {
       marker.on('click', () => {
         if (kind === 'nav' && h.target) ctx.goTo(h.target);
         else if (kind === 'info') ctx.emit('info', h.content);
-        else if (kind === 'link') { const u = h.url || h.href; if (u) window.open(u, '_blank', 'noopener'); }
+        else if (kind === 'link') {
+          // Task 8a: solo http(s)/mailto/tel — el Studio monta este motor sin manifest-loader
+          const u = safeLinkUrl(h.url ?? h.href);
+          if (u) window.open(u, '_blank', 'noopener');
+        }
       });
       sceneLayers.push(marker);
     }
