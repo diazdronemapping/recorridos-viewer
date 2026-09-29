@@ -201,6 +201,7 @@
         "type": { "type": "string" },
         "icon": { "type": "string", "description": "Id de la biblioteca de iconos del viewer (casa, recamara, bano, cocina, alberca, cochera, arbol, agua, luz, camino, lindero, vista, estrella, alerta, documento, camara). Desconocido u omitido → icono por defecto del tipo." },
         "rotation": { "type": "number", "minimum": -360, "maximum": 360, "description": "Giro de la flecha en grados (solo type nav). El visor acepta solo números finitos y los normaliza a [0,360)." },
+        "provisional": { "type": "boolean", "description": "Solo Studio: posición automática pendiente de revisar. No se publica." },
         "style": {
           "type": "object",
           "description": "Estilo por botón (aditivo). El visor ignora cualquier valor fuera de estas listas.",

@@ -80,6 +80,60 @@ function markerHtml(kind, label, iconId, deco = { cls: '', style: '' }) {
          (label ? `<span class="rc-hotspot__label">${escHtml(label)}</span>` : '') + `</div>`;
 }
 
+// Cargas sustituidas (fix rounds 1-2 de e90ba33). setPanorama aborta la carga
+// en vuelo, pero el error de la carga VIEJA no siempre llega como AbortError, y
+// el done() de PSV trata cualquier otro como error real: esconde el loader de la
+// nueva, anula state.loadingPromise, deja su aviso de error (no descartable)
+// encima de la escena buena, console.error y promesa sin manejar. Casos:
+//  · three (FileLoader r184) aborta a media descarga → `TypeError: Failed to fetch`;
+//  · la descarga ya terminó y falla después la lectura XMP, el decode
+//    (blobToImage rechaza con un Event) o la textura — fuera de loadFile;
+//  · three deduplica por URL hasta que el fetch abortado rechaza: pedir esa misma
+//    URL en ese hueco (A → B → A) se cuelga de la petición muerta.
+// Sin tocar vendor: envolver el adapter y el textureLoader de ESTE visor. Todo
+// adapter.loadTexture pedido antes del último abort rechaza como AbortError
+// (PSV lo ignora en silencio) sin importar en qué etapa falló, y una URL cuya
+// petición abortada sigue viva espera a que muera antes de pedirse de nuevo.
+// El error de la carga vigente pasa intacto: el aviso «No se pudo cargar» sigue.
+function guardLoads(viewer) {
+  const tl = viewer.textureLoader, adapter = viewer.adapter;
+  let gen = 0;
+  const live = new Map();   // url → fin de la petición de la generación actual
+  const dead = new Map();   // url → fin de una petición abortada que three aún deduplica
+  const aborted = () => new DOMException('Loading was aborted.', 'AbortError');
+  const abort = tl.abortLoading.bind(tl);
+  tl.abortLoading = () => {
+    gen++;
+    for (const [u, end] of live) dead.set(u, end);
+    live.clear();
+    abort();
+  };
+  const load = tl.loadFile.bind(tl);
+  tl.loadFile = async (url, onProgress, cacheKey) => {
+    const g = gen;
+    await dead.get(url);
+    if (g !== gen) throw aborted();   // sustituida mientras esperaba: ni pedirla
+    const req = load(url, onProgress, cacheKey);
+    const end = req.then(() => {}, () => {});
+    live.set(url, end);
+    end.then(() => {
+      if (live.get(url) === end) live.delete(url);
+      if (dead.get(url) === end) dead.delete(url);
+    });
+    return req;
+  };
+  // setPanorama llama abortLoading() ANTES de loadTexture: g es la generación de esta carga
+  const loadTexture = adapter.loadTexture.bind(adapter);
+  adapter.loadTexture = async (...args) => {
+    const g = gen;
+    try {
+      return await loadTexture(...args);
+    } catch (e) {
+      throw g !== gen ? aborted() : e;
+    }
+  };
+}
+
 export function create(ctx, container) {
   let viewer = null, markers = null, autorotate = null, gyro = null;
   let currentFov = 70;
@@ -197,11 +251,10 @@ export function create(ctx, container) {
   }
 
   function createViewer(scene, view) {
+    // SIN `panorama`: el constructor lo cargaría antes de poder envolver la
+    // carga (guardLoads). La primera carga va por setPanorama, abajo.
     viewer = new Viewer({
       container,
-      panorama: ctx.resolveAsset(scene.src),
-      panoData: sanitizePanoData(scene.panoData),
-      sphereCorrection: rollCorrection(scene.roll),
       navbar: false,
       // 'always' escucha en window (flechas/± /PageUp/Dn) — en el Studio va
       // apagado: secuestraría los inputs del inspector (review adversarial R1)
@@ -233,6 +286,7 @@ export function create(ctx, container) {
         [GyroscopePlugin, { touchmove: true }],
       ],
     });
+    guardLoads(viewer);
     markers = viewer.getPlugin(MarkersPlugin);
     autorotate = viewer.getPlugin(AutorotatePlugin);
     gyro = viewer.getPlugin(GyroscopePlugin);
@@ -303,10 +357,16 @@ export function create(ctx, container) {
       ctx.emit('pano-click', { yawDeg: radToDeg(data.yaw), pitchDeg: radToDeg(data.pitch) });
     });
 
-    return new Promise((resolve, reject) => {
+    const ready = new Promise((resolve, reject) => {
       viewer.addEventListener('ready', () => resolve(), { once: true });
       viewer.addEventListener('panorama-error', e => reject(e.error || new Error('panorama-error')), { once: true });
     });
+    // lo mismo que hacía el constructor; un error real llega por 'panorama-error'
+    viewer.setPanorama(ctx.resolveAsset(scene.src), {
+      panoData: sanitizePanoData(scene.panoData),
+      sphereCorrection: rollCorrection(scene.roll),
+    }).catch(() => {});
+    return ready;
   }
 
   // Entrada "little planet" (P3): arranca mirando al piso con fisheye y zoom
@@ -400,7 +460,19 @@ export function create(ctx, container) {
           await createViewer(scene, view);
         } else {
           viewer.setOptions({ minFov, maxFov });   // antes del pano: el mapeo de zoom depende de ellos
-          const loaded = await viewer.setPanorama(ctx.resolveAsset(scene.src), {
+          // Misma imagen todavía cargando (dos escenas que comparten foto, o re-mostrar la
+          // misma): setPanorama abortaría esa carga, pero FileLoader de three deduplica por
+          // URL hasta que el fetch abortado rechaza → la carga nueva se colgaba de la petición
+          // muerta, resolvía `false` (o «Failed to fetch») y el loader quedaba encima para
+          // siempre. Es la imagen que hace falta: esperar a que termine (luego sale de la
+          // caché de PSV, sin otra petición). Cubre solo «misma foto Y aún es config.panorama»;
+          // el resto de la carrera (A → B → A, abortos a media descarga) lo cubre guardLoads.
+          const src = ctx.resolveAsset(scene.src);
+          if (viewer.state.loadingPromise && viewer.config.panorama === src) {
+            await viewer.state.loadingPromise.catch(() => {});
+            if (stale()) return;
+          }
+          const loaded = await viewer.setPanorama(src, {
             position: { yaw: degToRad(view.yaw), pitch: degToRad(view.pitch) },
             zoom: fovToZoom(view.fov),
             panoData: sanitizePanoData(scene.panoData),
@@ -567,6 +639,7 @@ export function create(ctx, container) {
     },
 
     destroy() {
+      loadSeq++;        // un show() en vuelo (o esperando la misma foto) sale sin tocar el visor nulo
       viewer?.destroy();
       viewer = markers = autorotate = gyro = null;
     },
